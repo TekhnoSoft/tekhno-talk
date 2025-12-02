@@ -3,55 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comunicador Ocular de Acessibilidade</title>
-    <!-- Carrega Tailwind CSS para estilização fácil e responsiva -->
+    <title>EyeSpeak 👁️ - Comunicador Ocular</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Roboto', sans-serif;
             min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            background-color: #f7f9fc;
+            background-color: #1f2937; /* Fundo Escuro para Reduzir Fadiga Ocular */
+            color: #f3f4f6;
         }
+        main {
+            display: flex;
+            gap: 24px;
+        }
+        /* Estilos do Teclado Principal */
         #keyboard-grid {
             display: grid;
             grid-template-columns: repeat(10, 1fr);
-            gap: 4px;
-        }
-        #keyboard-grid-container {
-            max-height: 40vh;
-            overflow-y: auto;
+            gap: 6px; /* Aumentar o espaçamento */
         }
         .key-button {
-            padding: 0.75rem 0.5rem;
+            padding: 1.25rem 0.5rem; /* Aumentar o tamanho para facilitar o olhar */
             text-align: center;
-            font-size: 1.125rem;
-            font-weight: 600;
-            background-color: #ffffff;
-            color: #1f2937;
-            border: 2px solid #e5e7eb;
+            font-size: 1.5rem; /* Fonte maior */
+            font-weight: 500;
+            background-color: #374151; /* Cor de fundo da tecla */
+            color: #f3f4f6;
+            border: 2px solid #4b5563;
             transition: all 0.1s;
-            cursor: default; /* Remove cursor interaction hint */
+            cursor: default;
             user-select: none;
-            border-radius: 0.5rem;
+            border-radius: 0.75rem;
         }
-        .key-button:hover {
-            border-color: #d1d5db;
-        }
+        /* Destaque para Seleção */
         .highlighted {
             background-color: #3b82f6; /* Azul Primário */
             color: white;
             border-color: #2563eb;
-            box-shadow: 0 4px 6px rgba(59, 130, 246, 0.5);
-            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.7);
+            transform: scale(1.03);
+        }
+        /* Destaque para Confirmação */
+        .selected {
+            background-color: #10b981 !important; /* Verde de Sucesso */
+            border-color: #059669 !important;
         }
         .progress-bar {
-            height: 8px;
-            background-color: #111827;
+            height: 10px; /* Mais visível */
+            background-color: #f59e0b; /* Amarelo de Progresso */
             width: 0%;
-            transition: width 0.1s linear;
+            transition: width 0.05s linear;
             position: absolute;
             bottom: 0;
             left: 0;
@@ -61,13 +63,29 @@
             position: relative;
             overflow: hidden;
         }
+        /* Cursor de Olhar (Gaze Dot) */
+        #gaze-dot {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #f59e0b; /* Laranja/Amarelo */
+            box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.4);
+            transform: translate(-100px,-100px);
+            transition: none; /* Sem transição para rastreamento suave */
+        }
+        /* Webcam Feed Pequena e no Canto */
         #video-container {
-            position: relative;
-            width: 320px;
-            height: 240px;
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            width: 280px;
+            height: 210px;
             border-radius: 0.75rem;
             overflow: hidden;
-            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+            border: 4px solid #3b82f6;
+            z-index: 100;
         }
         #webcam-video, #webcam-canvas {
             position: absolute;
@@ -75,235 +93,129 @@
             left: 0;
             width: 100%;
             height: 100%;
-            transform: scaleX(-1); /* Espelha a imagem */
-        }
-        #gaze-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            pointer-events: none;
-            z-index: 9998;
-        }
-        #gaze-dot {
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #2563eb;
-            box-shadow: 0 0 0 8px rgba(37,99,235,0.25);
-            transform: translate(-100px,-100px);
-        }
-        #keyboard-grid-container.fullscreen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 9990;
-            padding: 2rem;
-            background: #ffffff;
-        }
-        #keyboard-grid-container.fullscreen #keyboard-grid {
-            grid-template-columns: repeat(6, 1fr);
-            gap: 10px;
-        }
-        #keyboard-grid-container.fullscreen .key-button {
-            padding: 1.5rem;
-            font-size: 2rem;
-            border-width: 3px;
+            transform: scaleX(-1);
         }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-6 md:p-8">
 
-    <div id="gaze-overlay"><div id="gaze-dot"></div></div>
+    <div id="gaze-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 9998;"><div id="gaze-dot"></div></div>
 
-    <header class="text-center mb-6">
-        <h1 class="text-3xl font-bold text-gray-800">Comunicador Ocular (Simulação)</h1>
-        <p class="text-gray-500">Comunicação por permanência de olhar (Dwell Time) - 5 segundos para seleção.</p>
+    <header class="mb-8">
+        <h1 class="text-4xl font-bold text-white">EyeSpeak 🗣️</h1>
+        <p class="text-gray-400">Comunicação Aumentativa por Rastreamento Ocular (WebGazer)</p>
     </header>
 
-    <main class="flex flex-col lg:flex-row gap-8 flex-1">
+    <div id="video-container">
+        <video id="webcam-video" autoplay playsinline></video>
+        <canvas id="webcam-canvas" style="display:none;"></canvas>
+    </div>
+
+    <main class="flex flex-col gap-8">
         
-        <!-- Painel de Controle e Vídeo -->
-        <div class="lg:w-1/3 flex flex-col items-center">
+        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl">
+            <h2 class="text-2xl font-semibold mb-3 text-gray-200">Saída de Texto</h2>
+            <textarea id="text-output" aria-label="Saída de texto" rows="3" class="w-full text-2xl p-4 bg-gray-900 text-white rounded-lg focus:outline-none resize-none border-2 border-gray-700" placeholder="Olhe para a tela e calibre para começar a digitar..."></textarea>
             
-            <div id="video-container" class="mb-6">
-                <video id="webcam-video" autoplay playsinline></video>
-                <canvas id="webcam-canvas"></canvas>
+            <div class="flex justify-between items-center mt-4">
+                <p id="status-message" role="status" aria-live="polite" class="text-lg text-yellow-400 font-medium">Aguardando rastreador ocular...</p>
+                
+                <div class="flex space-x-3">
+                    <button id="delete-btn" class="flex items-center bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg transition" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2m4-2v2m0 12v2"></path></svg>
+                        Apagar
+                    </button>
+                    <button id="clear-btn" class="flex items-center bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        Limpar
+                    </button>
+                </div>
             </div>
+            
+            <div class="flex items-center justify-between mt-6 p-3 bg-gray-700 rounded-lg">
+                <label for="dwell-slider" class="text-lg text-gray-300">
+                    Tempo de Permanência (Dwell): <span id="dwell-value" class="font-bold text-white">1.5</span>s
+                </label>
+                <input id="dwell-slider" type="range" min="1" max="5" step="0.5" value="1.5" class="w-48">
 
-            <div class="p-4 bg-white rounded-xl shadow-lg w-full max-w-sm">
-                <h2 class="text-xl font-semibold mb-3 text-gray-700">Status e Calibração</h2>
-                
-                <p id="status-message" role="status" aria-live="polite" class="text-sm mb-4 text-red-500 font-medium">Aguardando inicialização da câmera...</p>
-                
-                <button id="calibrate-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow transition duration-150" disabled>
-                    1. Calibrar Olhar
+                <button id="calibrate-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-150" disabled>
+                    Iniciar Calibração (9 Pontos)
                 </button>
-                <p class="text-sm text-gray-600 mt-2">Clique para iniciar e siga o ponto nos cantos e centro.</p>
-
-                <div class="mt-4">
-                    <label for="dwell-slider" class="block text-sm font-medium text-gray-700">Tempo de permanência (segundos): <span id="dwell-value" class="font-bold">5</span></label>
-                    <input id="dwell-slider" type="range" min="1" max="6" step="1" value="5" class="w-full mt-1">
-                </div>
-
-                <div class="mt-4 p-3 bg-gray-100 rounded-md">
-                    <p class="text-sm font-medium text-gray-600">Posição da Cabeça (X, Y):</p>
-                    <p id="head-position" class="text-lg font-mono text-gray-800">0, 0</p>
-                </div>
             </div>
         </div>
 
-        <!-- Teclado e Saída de Texto -->
-        <div class="lg:w-2/3 flex flex-col">
-            <h2 class="text-2xl font-semibold mb-3 text-gray-700">Saída de Texto</h2>
-            <div class="flex-1 mb-6 p-4 bg-white rounded-xl shadow-lg border border-gray-200">
-                <textarea id="text-output" aria-label="Saída de texto" rows="5" class="w-full text-xl p-2 focus:outline-none resize-none" placeholder="O texto selecionado aparecerá aqui..."></textarea>
-                <div class="flex justify-end space-x-2 mt-2">
-                    <button id="delete-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-medium py-1 px-3 rounded-lg text-sm transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 inline-block mr-1">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9.75v6m0 0l-3-3m3 3l3-3m-8.25 4.5h-2.25a2.25 2.25 0 01-2.25-2.25V5.25A2.25 2.25 0 014.5 3h15.75c1.24 0 2.25 1.01 2.25 2.25v13.5A2.25 2.25 0 0120.25 21H16.5" />
-                        </svg>
-                        Apagar Último
-                    </button>
-                    <button id="clear-btn" class="bg-red-500 hover:bg-red-600 text-white font-medium py-1 px-3 rounded-lg text-sm transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 inline-block mr-1">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.122 1.02.215v3.12c0 1.25-.97 2.25-2.25 2.25H9c-1.25 0-2.25-.97-2.25-2.25V6.026a2.26 2.26 0 011.02-.215m10.8-2.673c-.112-.37-.417-.674-.788-.788-1.5-.47-3.085-.71-4.717-.71-1.63 0-3.217.24-4.717.71-.37.114-.675.418-.787.788-1.5.47-3.085.71-4.717.71-1.63 0-3.217.24-4.717.71L12 21.75l2.42-7.26c.214-.64.84-1.12 1.543-1.12h4.51c.703 0 1.33.48 1.543 1.12L21 21.75l2.42-7.26c.214-.64.84-1.12 1.543-1.12H27c.703 0 1.33.48 1.543 1.12L30 21.75" />
-                        </svg>
-                        Limpar Tudo
-                    </button>
+        <div id="keyboard-grid-container" class="bg-gray-800 p-8 rounded-xl shadow-2xl flex-1">
+            <h2 class="text-2xl font-semibold mb-6 text-gray-200">Teclado Virtual</h2>
+            <div id="keyboard-grid" role="grid">
                 </div>
-            </div>
-
-            <h2 class="text-2xl font-semibold mb-3 text-gray-700">Teclado Virtual</h2>
-            <div id="keyboard-grid-container" class="bg-white p-6 rounded-xl shadow-2xl flex-1">
-                <div id="keyboard-grid" role="grid">
-                    <!-- Botões serão inseridos aqui pelo JavaScript -->
-                </div>
-            </div>
         </div>
 
     </main>
 
-    <!-- Scripts da Biblioteca clmtrackr e Modelo -->
-    <script src="https://cdn.jsdelivr.net/npm/clmtrackr@1.1.2/build/clmtrackr.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/clmtrackr@1.1.2/models/model_pca_20_svm.js"></script>
     <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
 
     <script>
         // --- VARIÁVEIS GLOBAIS ---
         const video = document.getElementById('webcam-video');
-        const canvas = document.getElementById('webcam-canvas');
-        const context = canvas.getContext('2d');
-        const tracker = new clm.tracker();
-        
         const statusMessage = document.getElementById('status-message');
-        const headPositionDisplay = document.getElementById('head-position');
-        const calibrateBtn = document.getElementById('calibrate-btn');
         const textOutput = document.getElementById('text-output');
         const keyboardGrid = document.getElementById('keyboard-grid');
-        const keyboardGridContainer = document.getElementById('keyboard-grid-container');
+        const calibrateBtn = document.getElementById('calibrate-btn');
         const deleteBtn = document.getElementById('delete-btn');
         const clearBtn = document.getElementById('clear-btn');
-        let lastGaze = null;
-        let deviceMoving = false;
-        let lastMotionTime = 0;
-        const MOTION_COOLDOWN_MS = 500;
-        let calibrating = false;
         
-        // Posição de calibração (centro neutro)
-        let neutralX = 0;
-        let neutralY = 0;
-        let isCalibrated = false;
-        let gazeTransform = null;
-        let lastSmoothed = null;
-        const SMOOTH_ALPHA = 0.3;
-        let gazePoly = null;
-        const KEY_SWITCH_HYSTERESIS_MS = 150;
+        let DWELL_TIME_SECONDS = 1.5;
+        const SELECTION_INTERVAL_MS = 50; // Intervalo mais rápido para melhor feedback
+        let currentSelectionKey = null;
+        let selectionProgress = 0;
+        let MAX_PROGRESS = DWELL_TIME_SECONDS * (1000 / SELECTION_INTERVAL_MS);
+        const HYSTERESIS_MS = 150; // Tempo mínimo para mudar de tecla (reduz jitter)
         let pendingKey = null;
         let pendingSince = 0;
-
-        // Parâmetros de Seleção
-        let DWELL_TIME_SECONDS = 5;
-        const SELECTION_INTERVAL_MS = 100;
-        let currentSelectionKey = null; // O botão atualmente destacado
-        let selectionProgress = 0; // Contagem de progresso (em intervalos)
-        let MAX_PROGRESS = DWELL_TIME_SECONDS * (1000 / SELECTION_INTERVAL_MS);
-
-        // --- TECLADO VIRTUAL ---
-        // Adicionando um array de chaves para o teclado
+        const SMOOTH_ALPHA = 0.2; // Fator de Suavização (menor = mais suave)
+        let lastSmoothedGaze = null;
+        
         const keys = [
             'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P',
-            'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ' ', // Espaço no final
-            'Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '!',
-            '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
-            '?', '@', '#', '$', '%', '&', '*', '+', '-', '<' // Símbolos diversos
+            'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'BACK',
+            'Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', 'ENTER',
+            'SHIFT', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', 'SPACE', '?', '!', '@', '#', '$', '%', '&', 'CLEAR'
         ];
 
         // --- FUNÇÕES DE SETUP ---
 
         /**
-         * Inicializa o stream da webcam e o tracker.
-         */
-        async function setupCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                video.srcObject = stream;
-                
-                // Espera o vídeo carregar para definir as dimensões do canvas
-                video.onloadedmetadata = () => {
-                    const videoWidth = video.videoWidth;
-                    const videoHeight = video.videoHeight;
-
-                    // Defina as dimensões do vídeo e do canvas
-                    video.width = videoWidth;
-                    video.height = videoHeight;
-                    canvas.width = videoWidth;
-                    canvas.height = videoHeight;
-
-                    // Inicializa o rastreador (clmtrackr)
-                    tracker.init(pModel);
-                    tracker.start(video);
-                    
-                    statusMessage.textContent = 'Câmera e Rastreamento de Face Ativos.';
-                    statusMessage.classList.remove('text-red-500');
-                    statusMessage.classList.add('text-blue-500');
-                    calibrateBtn.disabled = false;
-                    
-                    // Inicia o loop principal
-                    requestAnimationFrame(drawLoop);
-                };
-
-            } catch (err) {
-                console.error("Erro ao acessar a webcam:", err);
-                statusMessage.textContent = 'ERRO: Não foi possível acessar a câmera. Verifique as permissões.';
-                statusMessage.classList.remove('text-red-500');
-                statusMessage.classList.add('text-white', 'bg-red-700', 'p-2', 'rounded');
-            }
-        }
-
-        /**
          * Cria e insere os botões do teclado no DOM.
          */
         function createKeyboard() {
+            keyboardGrid.innerHTML = ''; // Limpar antes de criar
             keys.forEach(key => {
                 const container = document.createElement('div');
                 container.className = 'key-container';
                 container.setAttribute('data-key', key);
-
+                
+                // Ajustes de span/tamanho para chaves especiais
+                if (key === 'SPACE') container.style.gridColumn = 'span 4';
+                if (key === 'SHIFT') container.style.gridColumn = 'span 2';
+                if (key === 'BACK' || key === 'ENTER' || key === 'CLEAR') container.style.gridColumn = 'span 2';
+                
                 const button = document.createElement('button');
                 button.className = 'key-button w-full h-full';
-                button.textContent = key === ' ' ? 'ESPAÇO' : key;
-                button.id = `key-${key.replace(/[^a-zA-Z0-9]/g, 'symbol')}`; // ID seguro
+                let label = key;
+                if (key === 'SPACE') label = 'ESPAÇO';
+                if (key === 'BACK') label = 'APAGAR';
+                if (key === 'CLEAR') label = 'LIMPAR TUDO';
+                if (key === 'ENTER') label = 'ENVIAR';
+                if (key === 'SHIFT') label = 'MAIÚSCULAS';
+
+                button.textContent = label;
+                button.id = `key-${key.replace(/[^a-zA-Z0-9]/g, '_')}`;
                 button.setAttribute('role','button');
-                button.setAttribute('aria-label', key === ' ' ? 'Espaço' : key);
+                button.setAttribute('aria-label', label);
 
                 const progressBar = document.createElement('div');
                 progressBar.className = 'progress-bar';
-                progressBar.style.width = '0%';
                 
                 container.appendChild(button);
                 container.appendChild(progressBar);
@@ -311,152 +223,76 @@
             });
         }
         
-        // --- FUNÇÕES DE RASTREAMENTO E MAPEAMENTO ---
+        // --- FUNÇÕES DE RASTREAMENTO E SELEÇÃO ---
 
         /**
-         * Loop principal de desenho e rastreamento.
+         * Processa o ponto de olhar na tela (x, y) e tenta destacar uma chave.
          */
-        function drawLoop() {
-            requestAnimationFrame(drawLoop);
-            
-            context.clearRect(0, 0, canvas.width, canvas.height);
-        }
-
-        /**
-         * Define a posição atual da cabeça como o centro neutro.
-         */
-        function calibrate() {
-            const positions = tracker.getCurrentPosition();
-            if (positions && positions[33]) {
-                const headCenter = positions[33];
-                neutralX = headCenter[0] / video.width;
-                neutralY = headCenter[1] / video.height;
-                isCalibrated = true;
-                
-                statusMessage.textContent = `CALIBRADO! Posição Neutra: ${neutralX.toFixed(2)}, ${neutralY.toFixed(2)}.`;
-                statusMessage.classList.remove('text-blue-500', 'text-red-500');
-                statusMessage.classList.add('text-green-500');
-                calibrateBtn.textContent = 'RECALIBRAR';
+        function processGazePoint(x, y) {
+            // 1. Suavização (Kalman já está aplicado no webgazer, mas a suavização manual ajuda)
+            if (!lastSmoothedGaze) {
+                lastSmoothedGaze = { x: x, y: y };
             } else {
-                statusMessage.textContent = 'Erro de Calibração: Rosto não detectado. Tente novamente.';
-                statusMessage.classList.remove('text-green-500');
-                statusMessage.classList.add('text-red-500');
-            }
-        }
-
-        /**
-         * Processa a posição simulada do olhar e atualiza a interface.
-         * @param {number} x Posição X simulada (e.g., 0 a 1000)
-         * @param {number} y Posição Y simulada (e.g., 0 a 1000)
-         */
-        function processGaze(x, y) {
-            const gridRect = keyboardGrid.getBoundingClientRect();
-            
-            // Converte a posição simulada (0-1000) para coordenadas de tela
-            const screenX = gridRect.left + (x / 1000) * gridRect.width;
-            const screenY = gridRect.top + (y / 1000) * gridRect.height;
-            
-            // Encontra o elemento (botão) que corresponde à posição
-            const elements = document.elementsFromPoint(screenX, screenY);
-            
-            let targetKeyContainer = elements.find(el => el.classList.contains('key-container'));
-            
-            // Se o elemento estiver fora do grid, tente encontrar o grid container
-            if (!targetKeyContainer) {
-                 targetKeyContainer = elements.find(el => el.id === 'keyboard-grid-container');
+                x = SMOOTH_ALPHA * x + (1 - SMOOTH_ALPHA) * lastSmoothedGaze.x;
+                y = SMOOTH_ALPHA * y + (1 - SMOOTH_ALPHA) * lastSmoothedGaze.y;
+                lastSmoothedGaze = { x: x, y: y };
             }
 
-            // Garante que o elemento seja um container de chave
-            if (targetKeyContainer && targetKeyContainer.getAttribute('data-key')) {
-                highlightKey(targetKeyContainer);
-            } else {
-                // Se não estiver olhando para nenhuma chave válida
-                resetSelection();
-            }
-        }
-
-        function processGazeScreenPoint(x, y) {
-            let tx = x;
-            let ty = y;
-            if (gazePoly) {
-                const xx = x; const yy = y;
-                tx = gazePoly.ax[0] + gazePoly.ax[1]*xx + gazePoly.ax[2]*yy + gazePoly.ax[3]*xx*xx + gazePoly.ax[4]*xx*yy + gazePoly.ax[5]*yy*yy;
-                ty = gazePoly.ay[0] + gazePoly.ay[1]*xx + gazePoly.ay[2]*yy + gazePoly.ay[3]*xx*xx + gazePoly.ay[4]*xx*yy + gazePoly.ay[5]*yy*yy;
-            } else if (gazeTransform) {
-                tx = gazeTransform[0] * x + gazeTransform[1] * y + gazeTransform[2];
-                ty = gazeTransform[3] * x + gazeTransform[4] * y + gazeTransform[5];
-            }
-            tx += (window.driftOffset && window.driftOffset.x) || 0;
-            ty += (window.driftOffset && window.driftOffset.y) || 0;
-            if (lastSmoothed) {
-                tx = SMOOTH_ALPHA * tx + (1 - SMOOTH_ALPHA) * lastSmoothed.x;
-                ty = SMOOTH_ALPHA * ty + (1 - SMOOTH_ALPHA) * lastSmoothed.y;
-            }
-            lastSmoothed = { x: tx, y: ty };
-            tx = Math.max(0, Math.min(window.innerWidth - 1, tx));
-            ty = Math.max(0, Math.min(window.innerHeight - 1, ty));
+            // Atualiza o cursor visual
             const gazeDot = document.getElementById('gaze-dot');
-            if (gazeDot) {
-                gazeDot.style.transform = `translate(${tx - 10}px, ${ty - 10}px)`;
-            }
-            if (calibrating) return;
-            const targetKeyContainer = nearestKeyContainerAt(tx, ty);
-            if (targetKeyContainer && targetKeyContainer.getAttribute('data-key')) {
+            gazeDot.style.transform = `translate(${x - 7.5}px, ${y - 7.5}px)`;
+            
+            // 2. Encontrar a Chave de Destino
+            const targetElement = document.elementFromPoint(x, y);
+            const targetKeyContainer = targetElement && targetElement.closest('.key-container');
+
+            if (targetKeyContainer) {
+                // A) Lógica de Histérese (Key Switching)
                 if (currentSelectionKey !== targetKeyContainer) {
                     if (pendingKey !== targetKeyContainer) {
+                        // Novo candidato, reinicia contagem de pending
                         pendingKey = targetKeyContainer;
                         pendingSince = Date.now();
-                    } else if (Date.now() - pendingSince >= KEY_SWITCH_HYSTERESIS_MS) {
-                        highlightKey(targetKeyContainer);
+                        resetSelection(); // Resetar visualmente
+                    } else if (Date.now() - pendingSince >= HYSTERESIS_MS) {
+                        // Candidato está estável o suficiente, destacar e iniciar dwell
+                        currentSelectionKey = targetKeyContainer;
+                        selectionProgress = 0;
                         pendingKey = null;
                         pendingSince = 0;
                     }
-                } else {
-                    highlightKey(targetKeyContainer);
-                    pendingKey = null;
-                    pendingSince = 0;
                 }
+                
+                if (currentSelectionKey === targetKeyContainer) {
+                    highlightKey(currentSelectionKey);
+                }
+
             } else {
+                // Não está olhando para nenhuma chave válida
                 resetSelection();
-                pendingKey = null;
-                pendingSince = 0;
             }
         }
         
-        // --- FUNÇÕES DE SELEÇÃO POR PERMANÊNCIA (DWELL) ---
-
         /**
-         * Destaca uma chave e inicia/continua o progresso de seleção.
-         * @param {HTMLElement} keyContainer O container da chave para destacar.
+         * Destaca uma chave visualmente.
          */
         function highlightKey(keyContainer) {
-            if (currentSelectionKey !== keyContainer) {
-                // Se mudou para uma nova chave, reseta a anterior e começa a nova
-                resetSelection();
-                currentSelectionKey = keyContainer;
-                selectionProgress = 0;
-            }
-
-            // Adiciona a classe de destaque visual
             const button = keyContainer.querySelector('.key-button');
-            const progressBar = keyContainer.querySelector('.progress-bar');
-            
             if (!button.classList.contains('highlighted')) {
+                // Remove destaque de todas as outras chaves
+                document.querySelectorAll('.key-button').forEach(btn => btn.classList.remove('highlighted', 'selected'));
+                // Aplica destaque na atual
                 button.classList.add('highlighted');
             }
-
-            // Atualiza o progresso visual
-            const percentage = (selectionProgress / MAX_PROGRESS) * 100;
-            progressBar.style.width = `${percentage}%`;
         }
 
         /**
-         * Reseta o estado de seleção para todas as chaves.
+         * Reseta o estado de seleção.
          */
         function resetSelection() {
             if (currentSelectionKey) {
                 // Remove destaque e zera a barra de progresso da chave anterior
-                currentSelectionKey.querySelector('.key-button').classList.remove('highlighted');
+                currentSelectionKey.querySelector('.key-button').classList.remove('highlighted', 'selected');
                 currentSelectionKey.querySelector('.progress-bar').style.width = '0%';
             }
             currentSelectionKey = null;
@@ -464,16 +300,16 @@
         }
 
         /**
-         * Loop que checa e processa o tempo de permanência.
+         * Loop principal do Dwell Time.
          */
         function selectionLoop() {
-            if (!isCalibrated) return;
-            if (!deviceMoving && currentSelectionKey && !calibrating) {
+            if (currentSelectionKey && !window.calibrating) {
                 selectionProgress++;
-
-                const keyChar = currentSelectionKey.getAttribute('data-key');
-                const button = currentSelectionKey.querySelector('.key-button');
-                const progressBar = currentSelectionKey.querySelector('.progress-bar');
+                
+                const keyContainer = currentSelectionKey;
+                const keyChar = keyContainer.getAttribute('data-key');
+                const button = keyContainer.querySelector('.key-button');
+                const progressBar = keyContainer.querySelector('.progress-bar');
 
                 // Atualiza o progresso visual
                 const percentage = (selectionProgress / MAX_PROGRESS) * 100;
@@ -481,394 +317,224 @@
 
                 if (selectionProgress >= MAX_PROGRESS) {
                     // SELEÇÃO CONCLUÍDA!
-                    
-                    let currentText = textOutput.value;
-                    if (keyChar === ' ') {
-                        textOutput.value = currentText + ' ';
-                    } else if (keyChar === '<') {
-                        // Simulação de Backspace/Apagar último
-                        textOutput.value = currentText.slice(0, -1);
-                    } else {
-                         textOutput.value = currentText + keyChar;
-                    }
+                    processSelection(keyChar);
 
                     // Efeito visual de seleção
-                    button.classList.remove('highlighted');
-                    button.classList.add('bg-purple-500', 'scale-110');
+                    button.classList.add('selected');
                     setTimeout(() => {
-                        button.classList.remove('bg-purple-500', 'scale-110');
-                        button.classList.add('highlighted');
-                    }, 100);
-
-                    const rect = currentSelectionKey.getBoundingClientRect();
-                    const cx = rect.left + rect.width / 2;
-                    const cy = rect.top + rect.height / 2;
-                    if (!window.driftOffset) window.driftOffset = { x: 0, y: 0 };
-                    const last = lastSmoothed || { x: cx, y: cy };
-                    const dx = cx - last.x;
-                    const dy = cy - last.y;
-                    const DRIFT_ALPHA = 0.05;
-                    window.driftOffset.x = window.driftOffset.x * (1 - DRIFT_ALPHA) + dx * DRIFT_ALPHA;
-                    window.driftOffset.y = window.driftOffset.y * (1 - DRIFT_ALPHA) + dy * DRIFT_ALPHA;
+                        button.classList.remove('selected');
+                    }, 150);
 
                     if (window.selectionBeep) window.selectionBeep();
 
-                    // Reinicia a seleção para a chave atual (para que o olhar fixo possa selecionar novamente imediatamente)
+                    // Reinicia o dwell para a chave atual (permite seleção contínua)
                     selectionProgress = 0;
                 }
             }
         }
-
-        function nearestKeyContainerAt(x, y) {
-            const rect = keyboardGridContainer.getBoundingClientRect();
-            if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
-            const nodes = keyboardGrid.querySelectorAll('.key-container');
-            let best = null; let bestd2 = Infinity;
-            for (let i = 0; i < nodes.length; i++) {
-                const r = nodes[i].getBoundingClientRect();
-                const cx = r.left + r.width / 2;
-                const cy = r.top + r.height / 2;
-                const dx = cx - x; const dy = cy - y; const d2 = dx*dx + dy*dy;
-                if (d2 < bestd2) { bestd2 = d2; best = nodes[i]; }
+        
+        /**
+         * Executa a ação da chave selecionada.
+         */
+        function processSelection(keyChar) {
+            let currentText = textOutput.value;
+            switch(keyChar) {
+                case 'SPACE':
+                    textOutput.value = currentText + ' ';
+                    break;
+                case 'BACK':
+                    textOutput.value = currentText.slice(0, -1);
+                    break;
+                case 'CLEAR':
+                    textOutput.value = '';
+                    break;
+                case 'ENTER':
+                    // Ação de envio/nova linha (pode ser ajustada)
+                    textOutput.value = currentText + '\n';
+                    break;
+                case 'SHIFT':
+                    // Implementação de SHIFT mais complexa (alternar o teclado), por enquanto ignora.
+                    break;
+                default:
+                    // Caracter normal
+                    textOutput.value = currentText + keyChar;
+                    break;
             }
-            return best;
         }
         
-        // --- EVENT LISTENERS E INICIALIZAÇÃO ---
+        // --- CALIBRAÇÃO 9 PONTOS (WebGazer) ---
 
-        // Configura o teclado, câmera e eventos ao carregar
+        /**
+         * Inicia o processo de calibração de 9 pontos do WebGazer.
+         * Esta é a calibração padrão e mais robusta do WebGazer, garantindo um bom mapeamento polinomial.
+         */
+        async function startGazeCalibration() {
+            if (!window.webgazer) return;
+            window.calibrating = true;
+            resetSelection();
+            calibrateBtn.disabled = true;
+            calibrateBtn.textContent = 'Calibrando... Olhe para os pontos!';
+            
+            // Requerimentos: Calibração de 9 pontos (melhor precisão)
+            const calibPoints = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+            let currentPointIndex = 0;
+
+            const overlay = createCalibrationOverlay();
+            document.body.appendChild(overlay);
+            const dot = document.getElementById('calibration-dot');
+            const instruction = document.getElementById('calib-instruction');
+
+            webgazer.clearData();
+            webgazer.showVideo(false);
+            webgazer.showPredictionPoints(true); // Exibir pontos para feedback
+            
+            const points = [
+                { x: 0.1, y: 0.1 }, { x: 0.5, y: 0.1 }, { x: 0.9, y: 0.1 },
+                { x: 0.1, y: 0.5 }, { x: 0.5, y: 0.5 }, { x: 0.9, y: 0.5 },
+                { x: 0.1, y: 0.9 }, { x: 0.5, y: 0.9 }, { x: 0.9, y: 0.9 }
+            ];
+            
+            const CALIB_DWELL_MS = 1500; // Tempo de permanência em cada ponto
+
+            for (let i = 0; i < points.length; i++) {
+                const p = points[i];
+                const screenX = window.innerWidth * p.x;
+                const screenY = window.innerHeight * p.y;
+                
+                instruction.textContent = `Ponto ${i + 1} de ${points.length}. Mantenha o olhar fixo.`;
+                dot.style.transform = `translate(${screenX - 14}px, ${screenY - 14}px)`;
+                
+                // Espera um momento para o usuário fixar o olhar
+                await new Promise(r => setTimeout(r, 500)); 
+
+                // Simula o clique e coleta de dados para calibração
+                for (let j = 0; j < 30; j++) { // 30 amostras em 1.5s
+                    webgazer.recordScreenPosition(screenX, screenY, 'click');
+                    await new Promise(r => setTimeout(r, 50));
+                }
+            }
+
+            webgazer.setGazeListener(null); // Pausa o listener
+            webgazer.util.getPolynomialTransform(2).then(transform => {
+                webgazer.screenCalibration = transform; // Armazena a transformação
+                webgazer.setGazeListener(function(data) {
+                    if (data) processGazePoint(data.x, data.y);
+                });
+
+                document.body.removeChild(overlay);
+                window.calibrating = false;
+                calibrateBtn.textContent = 'Recalibrar Olhar';
+                calibrateBtn.disabled = false;
+                statusMessage.textContent = 'Calibração concluída! Digite com o olhar.';
+                statusMessage.classList.remove('text-yellow-400', 'text-red-500');
+                statusMessage.classList.add('text-green-500');
+
+                // Habilita as funções de texto
+                textOutput.disabled = false;
+                deleteBtn.disabled = false;
+                clearBtn.disabled = false;
+            }).catch(e => {
+                console.error("Erro na Calibração:", e);
+                document.body.removeChild(overlay);
+                window.calibrating = false;
+                calibrateBtn.textContent = 'Falha na Calibração! Tentar Novamente.';
+                calibrateBtn.disabled = false;
+                statusMessage.textContent = 'ERRO: Falha ao gerar transformação de olhar. Tente novamente.';
+                statusMessage.classList.add('text-red-500');
+            });
+        }
+        
+        function createCalibrationOverlay() {
+            const overlay = document.createElement('div');
+            overlay.id = 'calibration-overlay';
+            overlay.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); 
+                z-index: 9999; display: flex; align-items: center; justify-content: center; pointer-events: none;
+            `;
+            const instruction = document.createElement('div');
+            instruction.id = 'calib-instruction';
+            instruction.textContent = 'Calibração: Siga o ponto com os olhos.';
+            instruction.style.cssText = `
+                position: absolute; top: 10vh; left: 50%; transform: translateX(-50%); color: #fff; 
+                font-size: 24px; font-weight: 500; text-align: center;
+            `;
+            const dot = document.createElement('div');
+            dot.id = 'calibration-dot';
+            dot.style.cssText = `
+                position: absolute; width: 28px; height: 28px; border-radius: 50%; background: #10b981; 
+                box-shadow: 0 0 0 10px rgba(16,185,129,0.25); border: 4px solid #ffffff; transition: transform 300ms ease;
+            `;
+            overlay.appendChild(instruction);
+            overlay.appendChild(dot);
+            return overlay;
+        }
+
+        // --- INICIALIZAÇÃO E EVENT LISTENERS ---
+
         window.onload = function() {
             createKeyboard();
-            setupCamera();
-            keyboardGridContainer.style.display = 'none';
-            textOutput.disabled = true;
-            deleteBtn.disabled = true;
-            clearBtn.disabled = true;
             
             calibrateBtn.addEventListener('click', startGazeCalibration);
+            deleteBtn.addEventListener('click', () => processSelection('BACK'));
+            clearBtn.addEventListener('click', () => processSelection('CLEAR'));
 
             const dwellSlider = document.getElementById('dwell-slider');
             const dwellValue = document.getElementById('dwell-value');
             dwellSlider.addEventListener('input', () => {
-                DWELL_TIME_SECONDS = parseInt(dwellSlider.value, 10);
-                dwellValue.textContent = String(DWELL_TIME_SECONDS);
+                DWELL_TIME_SECONDS = parseFloat(dwellSlider.value);
+                dwellValue.textContent = DWELL_TIME_SECONDS.toFixed(1);
                 MAX_PROGRESS = DWELL_TIME_SECONDS * (1000 / SELECTION_INTERVAL_MS);
-                selectionProgress = 0;
+                selectionProgress = 0; // Resetar para aplicar o novo tempo
             });
 
-            // Adiciona funcionalidade aos botões de controle de texto
-            deleteBtn.addEventListener('click', () => {
-                let currentText = textOutput.value;
-                textOutput.value = currentText.slice(0, -1);
-            });
-            clearBtn.addEventListener('click', () => {
-                textOutput.value = '';
+            // Configura o WebGazer
+            webgazer.applyKalmanFilter(true); // Uso do filtro Kalman do WebGazer
+            webgazer.setRegression('ridge');
+            webgazer.setTracker('TFFacemesh');
+            webgazer.showVideo(true); // Exibir o vídeo no container fixo
+            webgazer.showFaceOverlay(false);
+            webgazer.showFaceFeedbackBox(false);
+            webgazer.showPredictionPoints(false);
+            
+            // Inicia o WebGazer
+            webgazer.begin().then(() => {
+                statusMessage.textContent = 'Rastreamento ocular pronto. Calibre o olhar para começar.';
+                calibrateBtn.disabled = false;
+
+                // Configura o listener principal
+                webgazer.setGazeListener(function(data, elapsedTime) {
+                    if (data && typeof data.x === 'number' && typeof data.y === 'number' && !window.calibrating) {
+                        processGazePoint(data.x, data.y);
+                    }
+                });
+
+                // Inicializa o som de feedback
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (AC) {
+                    const ctx = new AC();
+                    window.selectionBeep = () => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.value = 660; // Frequência um pouco mais baixa
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        gain.gain.setValueAtTime(0.001, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+                        osc.start();
+                        osc.stop(ctx.currentTime + 0.1);
+                    };
+                }
+
+            }).catch(e => {
+                statusMessage.textContent = 'ERRO: Não foi possível iniciar o rastreamento ocular. Verifique as permissões da câmera.';
+                statusMessage.classList.remove('text-yellow-400');
+                statusMessage.classList.add('text-red-500');
             });
 
             // Inicia o loop de seleção por intervalo
             setInterval(selectionLoop, SELECTION_INTERVAL_MS);
-
-            ensureWebGazer().then(() => {
-                if (window.webgazer) {
-                    webgazer.applyKalmanFilter(true);
-                    webgazer.setRegression('ridge');
-                    webgazer.setTracker('TFFacemesh');
-                    webgazer.showVideo(false);
-                    webgazer.showFaceOverlay(false);
-                    webgazer.showFaceFeedbackBox(false);
-                    const AC = window.AudioContext || window.webkitAudioContext;
-                    if (AC) {
-                        const ctx = new AC();
-                        window.selectionBeep = () => {
-                            const osc = ctx.createOscillator();
-                            const gain = ctx.createGain();
-                            osc.type = 'sine';
-                            osc.frequency.value = 880;
-                            osc.connect(gain);
-                            gain.connect(ctx.destination);
-                            gain.gain.setValueAtTime(0.001, ctx.currentTime);
-                            gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.01);
-                            osc.start();
-                            osc.stop(ctx.currentTime + 0.12);
-                        };
-                    }
-                    webgazer.setGazeListener(function(data){
-                        if (data && typeof data.x === 'number' && typeof data.y === 'number') {
-                            if (calibrating) {
-                                updateCalibrationCursor(data.x, data.y);
-                            } else if (isCalibrated) {
-                                processGazeScreenPoint(data.x, data.y);
-                            }
-                        }
-                    }).begin();
-                    webgazer.saveDataAcrossSessions(true);
-                    statusMessage.textContent = 'Rastreamento ocular pronto. Inicie a calibração do olhar.';
-                    statusMessage.classList.remove('text-red-500');
-                    statusMessage.classList.add('text-blue-500');
-                    calibrateBtn.disabled = false;
-                } else {
-                    statusMessage.textContent = 'Falha ao carregar rastreamento ocular. Tente recarregar.';
-                    statusMessage.classList.add('text-red-500');
-                }
-            });
-
-            window.addEventListener('devicemotion', (e) => {
-                const a = e.accelerationIncludingGravity || {};
-                const ax = Math.abs(a.x || 0);
-                const ay = Math.abs(a.y || 0);
-                const az = Math.abs(a.z || 0);
-                const threshold = 1.5;
-                const moving = (ax + ay + az) > threshold;
-                if (moving) {
-                    deviceMoving = true;
-                    lastMotionTime = Date.now();
-                } else {
-                    if (Date.now() - lastMotionTime > MOTION_COOLDOWN_MS) {
-                        deviceMoving = false;
-                    }
-                }
-            });
         };
-
-        function ensureWebGazer() {
-            return new Promise((resolve) => {
-                if (window.webgazer) return resolve();
-                const s = document.createElement('script');
-                s.src = 'https://webgazer.cs.brown.edu/webgazer.js';
-                s.async = true;
-                s.onload = () => resolve();
-                s.onerror = () => resolve();
-                document.head.appendChild(s);
-            });
-        }
-
-        async function startGazeCalibration() {
-            if (!window.webgazer) return;
-            calibrating = true;
-            selectionProgress = 0;
-            resetSelection();
-            calibrateBtn.disabled = true;
-            calibrateBtn.textContent = 'Calibrando...';
-            const overlay = document.createElement('div');
-            overlay.id = 'calibration-overlay';
-            overlay.style.position = 'fixed';
-            overlay.style.top = '0';
-            overlay.style.left = '0';
-            overlay.style.width = '100vw';
-            overlay.style.height = '100vh';
-            overlay.style.background = 'rgba(0,0,0,0.35)';
-            overlay.style.zIndex = '9999';
-            overlay.style.display = 'flex';
-            overlay.style.alignItems = 'center';
-            overlay.style.justifyContent = 'center';
-            overlay.style.pointerEvents = 'none';
-
-            const instruction = document.createElement('div');
-            instruction.textContent = 'Siga o ponto com os olhos para calibrar';
-            instruction.style.position = 'absolute';
-            instruction.style.top = '20px';
-            instruction.style.left = '50%';
-            instruction.style.transform = 'translateX(-50%)';
-            instruction.style.color = '#fff';
-            instruction.style.fontSize = '18px';
-            instruction.style.fontFamily = 'Inter, sans-serif';
-            instruction.style.textAlign = 'center';
-
-            const dot = document.createElement('div');
-            dot.id = 'calibration-dot';
-            dot.style.position = 'absolute';
-            dot.style.width = '28px';
-            dot.style.height = '28px';
-            dot.style.borderRadius = '50%';
-            dot.style.background = '#10b981';
-            dot.style.boxShadow = '0 0 0 10px rgba(16,185,129,0.25)';
-            dot.style.border = '2px solid #ffffff';
-            dot.style.transition = 'transform 300ms ease';
-
-            overlay.appendChild(instruction);
-            overlay.appendChild(dot);
-            document.body.appendChild(overlay);
-
-            webgazer.clearData();
-            webgazer.showVideo(true);
-            webgazer.showFaceOverlay(false);
-            webgazer.showFaceFeedbackBox(false);
-            webgazer.showPredictionPoints(false);
-
-            const w = window.innerWidth;
-            const h = window.innerHeight;
-            const mx = Math.floor(w * 0.1);
-            const my = Math.floor(h * 0.1);
-            const points = [
-                { x: mx, y: my },
-                { x: w - mx, y: my },
-                { x: w - mx, y: h - my },
-                { x: mx, y: h - my },
-                { x: Math.floor(w / 2), y: Math.floor(h / 2) }
-            ];
-
-            const settleMs = 800;
-            const sampleMs = 2000;
-            const intervalMs = 33;
-
-            const calibTargets = [];
-            const calibPreds = [];
-
-            for (let i = 0; i < points.length; i++) {
-                const p = points[i];
-                dot.style.transform = `translate(${p.x - 10}px, ${p.y - 10}px)`;
-                await new Promise(r => setTimeout(r, settleMs));
-                const samples = [];
-                const started = Date.now();
-                await new Promise(r => {
-                    const t = setInterval(() => {
-                        webgazer.recordScreenPosition(p.x, p.y, 'click');
-                        const pred = webgazer.getCurrentPrediction && webgazer.getCurrentPrediction();
-                        if (pred && typeof pred.x === 'number' && typeof pred.y === 'number') {
-                            samples.push({ x: pred.x, y: pred.y });
-                        }
-                        if (Date.now() - started >= sampleMs) {
-                            clearInterval(t);
-                            r(null);
-                        }
-                    }, intervalMs);
-                });
-                const median = (arr, sel) => {
-                    if (!arr.length) return sel==='x'?p.x:p.y;
-                    const vals = arr.map(v=>sel==='x'?v.x:v.y).sort((a,b)=>a-b);
-                    const mid = Math.floor(vals.length/2);
-                    return vals.length%2?vals[mid]:(vals[mid-1]+vals[mid])/2;
-                };
-                const avgx = median(samples,'x');
-                const avgy = median(samples,'y');
-                calibTargets.push({ x: p.x, y: p.y });
-                calibPreds.push({ x: avgx, y: avgy });
-            }
-
-            gazePoly = computePolyTransform(calibPreds, calibTargets);
-            lastSmoothed = null;
-
-            statusMessage.textContent = 'Calibração 1/2 concluída. Refinando no teclado...';
-
-            const krect = keyboardGridContainer.getBoundingClientRect();
-            keyboardGridContainer.style.display = 'block';
-            const kpoints = [
-                { x: Math.floor(krect.left + krect.width*0.2), y: Math.floor(krect.top + krect.height*0.33) },
-                { x: Math.floor(krect.left + krect.width*0.5), y: Math.floor(krect.top + krect.height*0.33) },
-                { x: Math.floor(krect.left + krect.width*0.8), y: Math.floor(krect.top + krect.height*0.33) },
-                { x: Math.floor(krect.left + krect.width*0.3), y: Math.floor(krect.top + krect.height*0.7) },
-                { x: Math.floor(krect.left + krect.width*0.7), y: Math.floor(krect.top + krect.height*0.7) }
-            ];
-
-            for (let i = 0; i < kpoints.length; i++) {
-                const p = kpoints[i];
-                dot.style.transform = `translate(${p.x - 10}px, ${p.y - 10}px)`;
-                await new Promise(r => setTimeout(r, settleMs));
-                const samples = [];
-                const started = Date.now();
-                await new Promise(r => {
-                    const t = setInterval(() => {
-                        webgazer.recordScreenPosition(p.x, p.y, 'click');
-                        const pred = webgazer.getCurrentPrediction && webgazer.getCurrentPrediction();
-                        if (pred && typeof pred.x === 'number' && typeof pred.y === 'number') {
-                            samples.push({ x: pred.x, y: pred.y });
-                        }
-                        if (Date.now() - started >= sampleMs) {
-                            clearInterval(t);
-                            r(null);
-                        }
-                    }, intervalMs);
-                });
-                const median = (arr, sel) => {
-                    if (!arr.length) return sel==='x'?p.x:p.y;
-                    const vals = arr.map(v=>sel==='x'?v.x:v.y).sort((a,b)=>a-b);
-                    const mid = Math.floor(vals.length/2);
-                    return vals.length%2?vals[mid]:(vals[mid-1]+vals[mid])/2;
-                };
-                const avgx = median(samples,'x');
-                const avgy = median(samples,'y');
-                calibTargets.push({ x: p.x, y: p.y });
-                calibPreds.push({ x: avgx, y: avgy });
-            }
-
-            gazePoly = computePolyTransform(calibPreds, calibTargets);
-
-            document.body.removeChild(overlay);
-            calibrating = false;
-            isCalibrated = true;
-            statusMessage.textContent = 'Calibração concluída. Digite com o olhar.';
-            statusMessage.classList.remove('text-red-500');
-            statusMessage.classList.add('text-green-500');
-            calibrateBtn.textContent = 'Recalibrar Olhar';
-            calibrateBtn.disabled = false;
-            webgazer.showVideo(false);
-            webgazer.showFaceOverlay(false);
-            webgazer.showFaceFeedbackBox(false);
-            webgazer.showPredictionPoints(false);
-            textOutput.disabled = false;
-            deleteBtn.disabled = false;
-            clearBtn.disabled = false;
-        }
-
-        function computePolyTransform(src, dst) {
-            const buildNormal = (samples, targetsComponent) => {
-                const M = Array.from({length:6},()=>Array(6).fill(0));
-                const V = Array(6).fill(0);
-                const basis = (x,y) => [1, x, y, x*x, x*y, y*y];
-                for (let i=0;i<samples.length;i++){
-                    const x = samples[i].x, y = samples[i].y; const b = basis(x,y);
-                    const t = targetsComponent(i);
-                    for (let r=0;r<6;r++){
-                        V[r] += b[r]*t;
-                        for (let c=0;c<6;c++) M[r][c] += b[r]*b[c];
-                    }
-                }
-                return {M,V};
-            };
-            const {M: Mx, V: Vx} = buildNormal(src, i=>dst[i].x);
-            const {M: My, V: Vy} = buildNormal(src, i=>dst[i].y);
-            const ax = gaussianSolve(Mx, Vx) || [0,1,0,0,0,0];
-            const ay = gaussianSolve(My, Vy) || [0,0,1,0,0,0];
-            return { ax, ay };
-        }
-
-        function gaussianSolve(A, b) {
-            const n = 6;
-            for (let i = 0; i < n; i++) {
-                let maxRow = i;
-                for (let r = i + 1; r < n; r++) {
-                    if (Math.abs(A[r][i]) > Math.abs(A[maxRow][i])) maxRow = r;
-                }
-                if (Math.abs(A[maxRow][i]) < 1e-8) return null;
-                if (maxRow !== i) {
-                    const tmp = A[i];
-                    A[i] = A[maxRow];
-                    A[maxRow] = tmp;
-                    const tb = b[i];
-                    b[i] = b[maxRow];
-                    b[maxRow] = tb;
-                }
-                const pivot = A[i][i];
-                for (let j = i; j < n; j++) A[i][j] /= pivot;
-                b[i] /= pivot;
-                for (let r = 0; r < n; r++) {
-                    if (r === i) continue;
-                    const f = A[r][i];
-                    for (let j = i; j < n; j++) A[r][j] -= f * A[i][j];
-                    b[r] -= f * b[i];
-                }
-            }
-            return b;
-        }
-        
-        // --- FUNÇÕES DE UTILITY PARA RECURSOS DO CLMTRACKR ---
-        // Adicionando um pequeno polyfill/ajuste para compatibilidade do clmtrackr
-        const audio = new Audio();
-        if(audio.mozSetup) {
-            // Correção para clmtrackr que falha a inicialização do áudio no Chrome
-            // O clmtrackr não é estritamente necessário para áudio, mas previne falhas de init
-        }
-
     </script>
 </body>
 </html>
