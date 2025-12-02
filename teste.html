@@ -872,10 +872,3 @@
     </script>
 </body>
 </html>
-        function updateCalibrationCursor(x, y) {
-            const gazeDot = document.getElementById('gaze-dot');
-            if (!gazeDot) return;
-            const tx = Math.max(0, Math.min(window.innerWidth - 1, x));
-            const ty = Math.max(0, Math.min(window.innerHeight - 1, y));
-            gazeDot.style.transform = `translate(${tx - 10}px, ${ty - 10}px)`;
-        }
