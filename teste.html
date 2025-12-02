@@ -584,14 +584,13 @@
             const h = window.innerHeight;
             const mx = Math.floor(w * 0.1);
             const my = Math.floor(h * 0.1);
-            const xs = [mx, Math.floor(w / 2), w - mx];
-            const ys = [my, Math.floor(h / 2), h - my];
-            const points = [];
-            for (let yi = 0; yi < ys.length; yi++) {
-                for (let xi = 0; xi < xs.length; xi++) {
-                    points.push({ x: xs[xi], y: ys[yi] });
-                }
-            }
+            const points = [
+                { x: mx, y: my },
+                { x: w - mx, y: my },
+                { x: w - mx, y: h - my },
+                { x: mx, y: h - my },
+                { x: Math.floor(w / 2), y: Math.floor(h / 2) }
+            ];
 
             const settleMs = 800;
             const sampleMs = 2000;
