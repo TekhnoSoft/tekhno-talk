@@ -217,6 +217,10 @@
         let gazeTransform = null;
         let lastSmoothed = null;
         const SMOOTH_ALPHA = 0.3;
+        let gazePoly = null;
+        const KEY_SWITCH_HYSTERESIS_MS = 150;
+        let pendingKey = null;
+        let pendingSince = 0;
 
         // Parâmetros de Seleção
         let DWELL_TIME_SECONDS = 5;
@@ -370,7 +374,11 @@
         function processGazeScreenPoint(x, y) {
             let tx = x;
             let ty = y;
-            if (gazeTransform) {
+            if (gazePoly) {
+                const xx = x; const yy = y;
+                tx = gazePoly.ax[0] + gazePoly.ax[1]*xx + gazePoly.ax[2]*yy + gazePoly.ax[3]*xx*xx + gazePoly.ax[4]*xx*yy + gazePoly.ax[5]*yy*yy;
+                ty = gazePoly.ay[0] + gazePoly.ay[1]*xx + gazePoly.ay[2]*yy + gazePoly.ay[3]*xx*xx + gazePoly.ay[4]*xx*yy + gazePoly.ay[5]*yy*yy;
+            } else if (gazeTransform) {
                 tx = gazeTransform[0] * x + gazeTransform[1] * y + gazeTransform[2];
                 ty = gazeTransform[3] * x + gazeTransform[4] * y + gazeTransform[5];
             }
@@ -387,15 +395,26 @@
             if (gazeDot) {
                 gazeDot.style.transform = `translate(${tx - 10}px, ${ty - 10}px)`;
             }
-            const elements = document.elementsFromPoint(tx, ty);
-            let targetKeyContainer = elements.find(el => el.classList.contains('key-container'));
-            if (!targetKeyContainer) {
-                targetKeyContainer = elements.find(el => el.id === 'keyboard-grid-container');
-            }
+            const targetKeyContainer = nearestKeyContainerAt(tx, ty);
             if (targetKeyContainer && targetKeyContainer.getAttribute('data-key')) {
-                highlightKey(targetKeyContainer);
+                if (currentSelectionKey !== targetKeyContainer) {
+                    if (pendingKey !== targetKeyContainer) {
+                        pendingKey = targetKeyContainer;
+                        pendingSince = Date.now();
+                    } else if (Date.now() - pendingSince >= KEY_SWITCH_HYSTERESIS_MS) {
+                        highlightKey(targetKeyContainer);
+                        pendingKey = null;
+                        pendingSince = 0;
+                    }
+                } else {
+                    highlightKey(targetKeyContainer);
+                    pendingKey = null;
+                    pendingSince = 0;
+                }
             } else {
                 resetSelection();
+                pendingKey = null;
+                pendingSince = 0;
             }
         }
         
@@ -493,6 +512,21 @@
                     selectionProgress = 0;
                 }
             }
+        }
+
+        function nearestKeyContainerAt(x, y) {
+            const rect = keyboardGridContainer.getBoundingClientRect();
+            if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
+            const nodes = keyboardGrid.querySelectorAll('.key-container');
+            let best = null; let bestd2 = Infinity;
+            for (let i = 0; i < nodes.length; i++) {
+                const r = nodes[i].getBoundingClientRect();
+                const cx = r.left + r.width / 2;
+                const cy = r.top + r.height / 2;
+                const dx = cx - x; const dy = cy - y; const d2 = dx*dx + dy*dy;
+                if (d2 < bestd2) { bestd2 = d2; best = nodes[i]; }
+            }
+            return best;
         }
         
         // --- EVENT LISTENERS E INICIALIZAÇÃO ---
@@ -647,9 +681,9 @@
 
             webgazer.clearData();
             webgazer.showVideo(true);
-            webgazer.showFaceOverlay(true);
-            webgazer.showFaceFeedbackBox(true);
-            webgazer.showPredictionPoints(true);
+            webgazer.showFaceOverlay(false);
+            webgazer.showFaceFeedbackBox(false);
+            webgazer.showPredictionPoints(false);
 
             const w = window.innerWidth;
             const h = window.innerHeight;
@@ -689,23 +723,19 @@
                         }
                     }, intervalMs);
                 });
-                let avgx = p.x;
-                let avgy = p.y;
-                if (samples.length > 0) {
-                    let sx = 0;
-                    let sy = 0;
-                    for (let k = 0; k < samples.length; k++) {
-                        sx += samples[k].x;
-                        sy += samples[k].y;
-                    }
-                    avgx = sx / samples.length;
-                    avgy = sy / samples.length;
-                }
+                const median = (arr, sel) => {
+                    if (!arr.length) return sel==='x'?p.x:p.y;
+                    const vals = arr.map(v=>sel==='x'?v.x:v.y).sort((a,b)=>a-b);
+                    const mid = Math.floor(vals.length/2);
+                    return vals.length%2?vals[mid]:(vals[mid-1]+vals[mid])/2;
+                };
+                const avgx = median(samples,'x');
+                const avgy = median(samples,'y');
                 calibTargets.push({ x: p.x, y: p.y });
                 calibPreds.push({ x: avgx, y: avgy });
             }
 
-            gazeTransform = computeAffineTransform(calibPreds, calibTargets);
+            gazePoly = computePolyTransform(calibPreds, calibTargets);
             lastSmoothed = null;
 
             document.body.removeChild(overlay);
@@ -727,35 +757,26 @@
             clearBtn.disabled = false;
         }
 
-        function computeAffineTransform(src, dst) {
-            const M = [
-                [0,0,0,0,0,0],
-                [0,0,0,0,0,0],
-                [0,0,0,0,0,0],
-                [0,0,0,0,0,0],
-                [0,0,0,0,0,0],
-                [0,0,0,0,0,0]
-            ];
-            const V = [0,0,0,0,0,0];
-            function addRow(row, b) {
-                for (let i = 0; i < 6; i++) {
-                    V[i] += row[i] * b;
-                    for (let j = 0; j < 6; j++) {
-                        M[i][j] += row[i] * row[j];
+        function computePolyTransform(src, dst) {
+            const buildNormal = (samples, targetsComponent) => {
+                const M = Array.from({length:6},()=>Array(6).fill(0));
+                const V = Array(6).fill(0);
+                const basis = (x,y) => [1, x, y, x*x, x*y, y*y];
+                for (let i=0;i<samples.length;i++){
+                    const x = samples[i].x, y = samples[i].y; const b = basis(x,y);
+                    const t = targetsComponent(i);
+                    for (let r=0;r<6;r++){
+                        V[r] += b[r]*t;
+                        for (let c=0;c<6;c++) M[r][c] += b[r]*b[c];
                     }
                 }
-            }
-            for (let i = 0; i < src.length; i++) {
-                const x = src[i].x;
-                const y = src[i].y;
-                const X = dst[i].x;
-                const Y = dst[i].y;
-                addRow([x, y, 1, 0, 0, 0], X);
-                addRow([0, 0, 0, x, y, 1], Y);
-            }
-            const U = gaussianSolve(M, V);
-            if (!U) return [1,0,0,0,1,0];
-            return U;
+                return {M,V};
+            };
+            const {M: Mx, V: Vx} = buildNormal(src, i=>dst[i].x);
+            const {M: My, V: Vy} = buildNormal(src, i=>dst[i].y);
+            const ax = gaussianSolve(Mx, Vx) || [0,1,0,0,0,0];
+            const ay = gaussianSolve(My, Vy) || [0,0,1,0,0,0];
+            return { ax, ay };
         }
 
         function gaussianSolve(A, b) {
