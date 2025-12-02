@@ -20,10 +20,14 @@
             grid-template-columns: repeat(10, 1fr);
             gap: 4px;
         }
+        #keyboard-grid-container {
+            max-height: 40vh;
+            overflow-y: auto;
+        }
         .key-button {
             padding: 0.75rem 0.5rem;
             text-align: center;
-            font-size: 1.25rem;
+            font-size: 1.125rem;
             font-weight: 600;
             background-color: #ffffff;
             color: #1f2937;
@@ -395,6 +399,7 @@
             if (gazeDot) {
                 gazeDot.style.transform = `translate(${tx - 10}px, ${ty - 10}px)`;
             }
+            if (calibrating) return;
             const targetKeyContainer = nearestKeyContainerAt(tx, ty);
             if (targetKeyContainer && targetKeyContainer.getAttribute('data-key')) {
                 if (currentSelectionKey !== targetKeyContainer) {
@@ -588,8 +593,12 @@
                         };
                     }
                     webgazer.setGazeListener(function(data){
-                        if (data && typeof data.x === 'number' && typeof data.y === 'number' && !calibrating && isCalibrated) {
-                            processGazeScreenPoint(data.x, data.y);
+                        if (data && typeof data.x === 'number' && typeof data.y === 'number') {
+                            if (calibrating) {
+                                updateCalibrationCursor(data.x, data.y);
+                            } else if (isCalibrated) {
+                                processGazeScreenPoint(data.x, data.y);
+                            }
                         }
                     }).begin();
                     webgazer.saveDataAcrossSessions(true);
@@ -668,11 +677,12 @@
             const dot = document.createElement('div');
             dot.id = 'calibration-dot';
             dot.style.position = 'absolute';
-            dot.style.width = '20px';
-            dot.style.height = '20px';
+            dot.style.width = '28px';
+            dot.style.height = '28px';
             dot.style.borderRadius = '50%';
             dot.style.background = '#10b981';
-            dot.style.boxShadow = '0 0 0 8px rgba(16,185,129,0.25)';
+            dot.style.boxShadow = '0 0 0 10px rgba(16,185,129,0.25)';
+            dot.style.border = '2px solid #ffffff';
             dot.style.transition = 'transform 300ms ease';
 
             overlay.appendChild(instruction);
@@ -738,10 +748,55 @@
             gazePoly = computePolyTransform(calibPreds, calibTargets);
             lastSmoothed = null;
 
+            statusMessage.textContent = 'Calibração 1/2 concluída. Refinando no teclado...';
+
+            const krect = keyboardGridContainer.getBoundingClientRect();
+            keyboardGridContainer.style.display = 'block';
+            const kpoints = [
+                { x: Math.floor(krect.left + krect.width*0.2), y: Math.floor(krect.top + krect.height*0.33) },
+                { x: Math.floor(krect.left + krect.width*0.5), y: Math.floor(krect.top + krect.height*0.33) },
+                { x: Math.floor(krect.left + krect.width*0.8), y: Math.floor(krect.top + krect.height*0.33) },
+                { x: Math.floor(krect.left + krect.width*0.3), y: Math.floor(krect.top + krect.height*0.7) },
+                { x: Math.floor(krect.left + krect.width*0.7), y: Math.floor(krect.top + krect.height*0.7) }
+            ];
+
+            for (let i = 0; i < kpoints.length; i++) {
+                const p = kpoints[i];
+                dot.style.transform = `translate(${p.x - 10}px, ${p.y - 10}px)`;
+                await new Promise(r => setTimeout(r, settleMs));
+                const samples = [];
+                const started = Date.now();
+                await new Promise(r => {
+                    const t = setInterval(() => {
+                        webgazer.recordScreenPosition(p.x, p.y, 'click');
+                        const pred = webgazer.getCurrentPrediction && webgazer.getCurrentPrediction();
+                        if (pred && typeof pred.x === 'number' && typeof pred.y === 'number') {
+                            samples.push({ x: pred.x, y: pred.y });
+                        }
+                        if (Date.now() - started >= sampleMs) {
+                            clearInterval(t);
+                            r(null);
+                        }
+                    }, intervalMs);
+                });
+                const median = (arr, sel) => {
+                    if (!arr.length) return sel==='x'?p.x:p.y;
+                    const vals = arr.map(v=>sel==='x'?v.x:v.y).sort((a,b)=>a-b);
+                    const mid = Math.floor(vals.length/2);
+                    return vals.length%2?vals[mid]:(vals[mid-1]+vals[mid])/2;
+                };
+                const avgx = median(samples,'x');
+                const avgy = median(samples,'y');
+                calibTargets.push({ x: p.x, y: p.y });
+                calibPreds.push({ x: avgx, y: avgy });
+            }
+
+            gazePoly = computePolyTransform(calibPreds, calibTargets);
+
             document.body.removeChild(overlay);
             calibrating = false;
             isCalibrated = true;
-            statusMessage.textContent = 'Calibração do olhar concluída.';
+            statusMessage.textContent = 'Calibração concluída. Digite com o olhar.';
             statusMessage.classList.remove('text-red-500');
             statusMessage.classList.add('text-green-500');
             calibrateBtn.textContent = 'Recalibrar Olhar';
@@ -750,8 +805,6 @@
             webgazer.showFaceOverlay(false);
             webgazer.showFaceFeedbackBox(false);
             webgazer.showPredictionPoints(false);
-            keyboardGridContainer.style.display = 'block';
-            keyboardGridContainer.classList.add('fullscreen');
             textOutput.disabled = false;
             deleteBtn.disabled = false;
             clearBtn.disabled = false;
@@ -819,3 +872,10 @@
     </script>
 </body>
 </html>
+        function updateCalibrationCursor(x, y) {
+            const gazeDot = document.getElementById('gaze-dot');
+            if (!gazeDot) return;
+            const tx = Math.max(0, Math.min(window.innerWidth - 1, x));
+            const ty = Math.max(0, Math.min(window.innerHeight - 1, y));
+            gazeDot.style.transform = `translate(${tx - 10}px, ${ty - 10}px)`;
+        }
