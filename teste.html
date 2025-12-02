@@ -189,6 +189,9 @@
         let neutralX = 0;
         let neutralY = 0;
         let isCalibrated = false;
+        let gazeTransform = null;
+        let lastSmoothed = null;
+        const SMOOTH_ALPHA = 0.3;
 
         // Parâmetros de Seleção
         const DWELL_TIME_SECONDS = 5; // 5 segundos para seleção
@@ -338,7 +341,20 @@
         }
 
         function processGazeScreenPoint(x, y) {
-            const elements = document.elementsFromPoint(x, y);
+            let tx = x;
+            let ty = y;
+            if (gazeTransform) {
+                tx = gazeTransform[0] * x + gazeTransform[1] * y + gazeTransform[2];
+                ty = gazeTransform[3] * x + gazeTransform[4] * y + gazeTransform[5];
+            }
+            if (lastSmoothed) {
+                tx = SMOOTH_ALPHA * tx + (1 - SMOOTH_ALPHA) * lastSmoothed.x;
+                ty = SMOOTH_ALPHA * ty + (1 - SMOOTH_ALPHA) * lastSmoothed.y;
+            }
+            lastSmoothed = { x: tx, y: ty };
+            tx = Math.max(0, Math.min(window.innerWidth - 1, tx));
+            ty = Math.max(0, Math.min(window.innerHeight - 1, ty));
+            const elements = document.elementsFromPoint(tx, ty);
             let targetKeyContainer = elements.find(el => el.classList.contains('key-container'));
             if (!targetKeyContainer) {
                 targetKeyContainer = elements.find(el => el.id === 'keyboard-grid-container');
@@ -581,21 +597,46 @@
             const sampleMs = 2000;
             const intervalMs = 33;
 
+            const calibTargets = [];
+            const calibPreds = [];
+
             for (let i = 0; i < points.length; i++) {
                 const p = points[i];
                 dot.style.transform = `translate(${p.x - 10}px, ${p.y - 10}px)`;
                 await new Promise(r => setTimeout(r, settleMs));
+                const samples = [];
                 const started = Date.now();
                 await new Promise(r => {
                     const t = setInterval(() => {
                         webgazer.recordScreenPosition(p.x, p.y, 'click');
+                        const pred = webgazer.getCurrentPrediction && webgazer.getCurrentPrediction();
+                        if (pred && typeof pred.x === 'number' && typeof pred.y === 'number') {
+                            samples.push({ x: pred.x, y: pred.y });
+                        }
                         if (Date.now() - started >= sampleMs) {
                             clearInterval(t);
                             r(null);
                         }
                     }, intervalMs);
                 });
+                let avgx = p.x;
+                let avgy = p.y;
+                if (samples.length > 0) {
+                    let sx = 0;
+                    let sy = 0;
+                    for (let k = 0; k < samples.length; k++) {
+                        sx += samples[k].x;
+                        sy += samples[k].y;
+                    }
+                    avgx = sx / samples.length;
+                    avgy = sy / samples.length;
+                }
+                calibTargets.push({ x: p.x, y: p.y });
+                calibPreds.push({ x: avgx, y: avgy });
             }
+
+            gazeTransform = computeAffineTransform(calibPreds, calibTargets);
+            lastSmoothed = null;
 
             document.body.removeChild(overlay);
             calibrating = false;
@@ -614,6 +655,66 @@
             textOutput.disabled = false;
             deleteBtn.disabled = false;
             clearBtn.disabled = false;
+        }
+
+        function computeAffineTransform(src, dst) {
+            const M = [
+                [0,0,0,0,0,0],
+                [0,0,0,0,0,0],
+                [0,0,0,0,0,0],
+                [0,0,0,0,0,0],
+                [0,0,0,0,0,0],
+                [0,0,0,0,0,0]
+            ];
+            const V = [0,0,0,0,0,0];
+            function addRow(row, b) {
+                for (let i = 0; i < 6; i++) {
+                    V[i] += row[i] * b;
+                    for (let j = 0; j < 6; j++) {
+                        M[i][j] += row[i] * row[j];
+                    }
+                }
+            }
+            for (let i = 0; i < src.length; i++) {
+                const x = src[i].x;
+                const y = src[i].y;
+                const X = dst[i].x;
+                const Y = dst[i].y;
+                addRow([x, y, 1, 0, 0, 0], X);
+                addRow([0, 0, 0, x, y, 1], Y);
+            }
+            const U = gaussianSolve(M, V);
+            if (!U) return [1,0,0,0,1,0];
+            return U;
+        }
+
+        function gaussianSolve(A, b) {
+            const n = 6;
+            for (let i = 0; i < n; i++) {
+                let maxRow = i;
+                for (let r = i + 1; r < n; r++) {
+                    if (Math.abs(A[r][i]) > Math.abs(A[maxRow][i])) maxRow = r;
+                }
+                if (Math.abs(A[maxRow][i]) < 1e-8) return null;
+                if (maxRow !== i) {
+                    const tmp = A[i];
+                    A[i] = A[maxRow];
+                    A[maxRow] = tmp;
+                    const tb = b[i];
+                    b[i] = b[maxRow];
+                    b[maxRow] = tb;
+                }
+                const pivot = A[i][i];
+                for (let j = i; j < n; j++) A[i][j] /= pivot;
+                b[i] /= pivot;
+                for (let r = 0; r < n; r++) {
+                    if (r === i) continue;
+                    const f = A[r][i];
+                    for (let j = i; j < n; j++) A[r][j] -= f * A[i][j];
+                    b[r] -= f * b[i];
+                }
+            }
+            return b;
         }
         
         // --- FUNÇÕES DE UTILITY PARA RECURSOS DO CLMTRACKR ---
