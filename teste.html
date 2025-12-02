@@ -73,6 +73,25 @@
             height: 100%;
             transform: scaleX(-1); /* Espelha a imagem */
         }
+        #keyboard-grid-container.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9990;
+            padding: 2rem;
+            background: #ffffff;
+        }
+        #keyboard-grid-container.fullscreen #keyboard-grid {
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+        }
+        #keyboard-grid-container.fullscreen .key-button {
+            padding: 1.5rem;
+            font-size: 2rem;
+            border-width: 3px;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -157,6 +176,7 @@
         const calibrateBtn = document.getElementById('calibrate-btn');
         const textOutput = document.getElementById('text-output');
         const keyboardGrid = document.getElementById('keyboard-grid');
+        const keyboardGridContainer = document.getElementById('keyboard-grid-container');
         const deleteBtn = document.getElementById('delete-btn');
         const clearBtn = document.getElementById('clear-btn');
         let lastGaze = null;
@@ -374,6 +394,7 @@
          * Loop que checa e processa o tempo de permanência.
          */
         function selectionLoop() {
+            if (!isCalibrated) return;
             if (!deviceMoving && currentSelectionKey && !calibrating) {
                 selectionProgress++;
 
@@ -418,6 +439,10 @@
         window.onload = function() {
             createKeyboard();
             setupCamera();
+            keyboardGridContainer.style.display = 'none';
+            textOutput.disabled = true;
+            deleteBtn.disabled = true;
+            clearBtn.disabled = true;
             
             calibrateBtn.addEventListener('click', startGazeCalibration);
 
@@ -442,7 +467,7 @@
                     webgazer.showFaceOverlay(false);
                     webgazer.showFaceFeedbackBox(false);
                     webgazer.setGazeListener(function(data){
-                        if (data && typeof data.x === 'number' && typeof data.y === 'number' && !calibrating) {
+                        if (data && typeof data.x === 'number' && typeof data.y === 'number' && !calibrating && isCalibrated) {
                             processGazeScreenPoint(data.x, data.y);
                         }
                     }).begin();
@@ -543,17 +568,18 @@
             const h = window.innerHeight;
             const mx = Math.floor(w * 0.1);
             const my = Math.floor(h * 0.1);
-            const points = [
-                { x: mx, y: my },
-                { x: w - mx, y: my },
-                { x: w - mx, y: h - my },
-                { x: mx, y: h - my },
-                { x: Math.floor(w / 2), y: Math.floor(h / 2) },
-            ];
+            const xs = [mx, Math.floor(w / 2), w - mx];
+            const ys = [my, Math.floor(h / 2), h - my];
+            const points = [];
+            for (let yi = 0; yi < ys.length; yi++) {
+                for (let xi = 0; xi < xs.length; xi++) {
+                    points.push({ x: xs[xi], y: ys[yi] });
+                }
+            }
 
-            const settleMs = 600;
-            const sampleMs = 1500;
-            const intervalMs = 50;
+            const settleMs = 800;
+            const sampleMs = 2000;
+            const intervalMs = 33;
 
             for (let i = 0; i < points.length; i++) {
                 const p = points[i];
@@ -583,6 +609,11 @@
             webgazer.showFaceOverlay(false);
             webgazer.showFaceFeedbackBox(false);
             webgazer.showPredictionPoints(false);
+            keyboardGridContainer.style.display = 'block';
+            keyboardGridContainer.classList.add('fullscreen');
+            textOutput.disabled = false;
+            deleteBtn.disabled = false;
+            clearBtn.disabled = false;
         }
         
         // --- FUNÇÕES DE UTILITY PARA RECURSOS DO CLMTRACKR ---
