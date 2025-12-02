@@ -55,7 +55,7 @@
             height: 10px; 
             background-color: #f59e0b; /* Amarelo: Progresso */
             width: 0%;
-            transition: width 0.05s linear; /* Transição suave para o progresso */
+            transition: width 0.05s linear; 
             position: absolute;
             bottom: 0;
             left: 0;
@@ -75,7 +75,7 @@
             background: #f59e0b; 
             box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.4);
             transform: translate(-100px,-100px);
-            transition: none; /* ESSENCIAL: Sem transição para rastreamento suave e rápido */
+            transition: none; 
             pointer-events: none; 
         }
         
@@ -98,7 +98,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            transform: scaleX(-1); /* Espelha o vídeo */
+            transform: scaleX(-1); 
         }
     </style>
 </head>
@@ -196,7 +196,6 @@
                 container.className = 'key-container';
                 container.setAttribute('data-key', key);
                 
-                // Ajustes de span/tamanho
                 if (key === 'SPACE') container.style.gridColumn = 'span 4';
                 if (key === 'SHIFT') container.style.gridColumn = 'span 2';
                 if (key === 'BACK' || key === 'ENTER' || key === 'CLEAR') container.style.gridColumn = 'span 2';
@@ -338,11 +337,10 @@
                     textOutput.value = currentText + keyChar;
                     break;
             }
-            // Garante que o cursor do textarea permaneça no final
             textOutput.scrollTop = textOutput.scrollHeight;
         }
         
-        // --- CALIBRAÇÃO 9 PONTOS (CORRIGIDA) ---
+        // --- CALIBRAÇÃO 9 PONTOS ---
 
         function createCalibrationOverlay() {
             const overlay = document.createElement('div');
@@ -396,27 +394,23 @@
 
             for (let i = 0; i < points.length; i++) {
                 const p = points[i];
-                // Calcula as coordenadas de tela
                 const screenX = window.innerWidth * p.x;
                 const screenY = window.innerHeight * p.y;
                 
                 instruction.textContent = `Ponto ${i + 1} de ${points.length}. Mantenha o olhar fixo.`;
                 
-                // --- CORREÇÃO DE POSICIONAMENTO AQUI ---
-                // Usa top/left para posicionamento absoluto, garantindo que o ponto não saia da tela
-                dot.style.left = `${screenX - 14}px`; // 14 = metade do tamanho do ponto (28px)
+                // Posicionamento corrigido
+                dot.style.left = `${screenX - 14}px`; 
                 dot.style.top = `${screenY - 14}px`; 
                 
-                await new Promise(r => setTimeout(r, 500)); // Pequena pausa para o usuário focar
+                await new Promise(r => setTimeout(r, 500)); 
 
-                // Coleta de dados
                 for (let j = 0; j < SAMPLES_PER_POINT; j++) {
                     webgazer.recordScreenPosition(screenX, screenY, 'click');
                     await new Promise(r => setTimeout(r, SAMPLE_INTERVAL_MS));
                 }
             }
 
-            // Fim da Calibração
             webgazer.showPredictionPoints(false); 
             document.body.removeChild(overlay);
             window.calibrating = false;
@@ -458,9 +452,10 @@
             });
 
             // Configuração do WebGazer
-            webgazer.applyKalmanFilter(true); // Filtro interno de suavização
+            webgazer.applyKalmanFilter(true); 
             webgazer.setRegression('ridge'); 
-            webgazer.setTracker('TFFacemesh'); // Usa o rastreador mais moderno e preciso
+            // CORREÇÃO: Usando o rastreador 'face' para maior estabilidade
+            webgazer.setTracker('face'); 
             webgazer.showVideo(true); 
             webgazer.showFaceOverlay(false);
             webgazer.showFaceFeedbackBox(false);
@@ -471,7 +466,6 @@
                 statusMessage.textContent = 'Rastreamento ocular pronto. Calibre o olhar para começar.';
                 calibrateBtn.disabled = false;
 
-                // Inicializa o listener
                 webgazer.setGazeListener(function(data, elapsedTime) {
                     if (data && typeof data.x === 'number' && typeof data.y === 'number' && !window.calibrating) {
                         processGazePoint(data.x, data.y);
