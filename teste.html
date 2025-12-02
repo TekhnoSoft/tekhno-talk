@@ -73,6 +73,7 @@
             box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.4);
             transform: translate(-100px,-100px);
             transition: none; /* Sem transição para rastreamento suave */
+            pointer-events: none; /* Garante que o ponto não atrapalhe o elementFromPoint */
         }
         /* Webcam Feed Pequena e no Canto */
         #video-container {
@@ -93,7 +94,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            transform: scaleX(-1);
+            transform: scaleX(-1); /* Espelha o vídeo para visualização natural */
         }
     </style>
 </head>
@@ -229,10 +230,11 @@
          * Processa o ponto de olhar na tela (x, y) e tenta destacar uma chave.
          */
         function processGazePoint(x, y) {
-            // 1. Suavização (Kalman já está aplicado no webgazer, mas a suavização manual ajuda)
+            // 1. Suavização (Smoothing)
             if (!lastSmoothedGaze) {
                 lastSmoothedGaze = { x: x, y: y };
             } else {
+                // Média móvel exponencial simples
                 x = SMOOTH_ALPHA * x + (1 - SMOOTH_ALPHA) * lastSmoothedGaze.x;
                 y = SMOOTH_ALPHA * y + (1 - SMOOTH_ALPHA) * lastSmoothedGaze.y;
                 lastSmoothedGaze = { x: x, y: y };
@@ -297,6 +299,8 @@
             }
             currentSelectionKey = null;
             selectionProgress = 0;
+            pendingKey = null; // Zera também o pending
+            pendingSince = 0;
         }
 
         /**
@@ -353,20 +357,22 @@
                     textOutput.value = currentText + '\n';
                     break;
                 case 'SHIFT':
-                    // Implementação de SHIFT mais complexa (alternar o teclado), por enquanto ignora.
+                    // Por simplicidade, o SHIFT não alterna o layout do teclado
                     break;
                 default:
                     // Caracter normal
                     textOutput.value = currentText + keyChar;
                     break;
             }
+            // Garante que o cursor do textarea permaneça no final
+            textOutput.scrollTop = textOutput.scrollHeight;
         }
         
-        // --- CALIBRAÇÃO 9 PONTOS (WebGazer) ---
+        // --- CALIBRAÇÃO 9 PONTOS (CORRIGIDA) ---
 
         /**
-         * Inicia o processo de calibração de 9 pontos do WebGazer.
-         * Esta é a calibração padrão e mais robusta do WebGazer, garantindo um bom mapeamento polinomial.
+         * Inicia o processo de calibração de 9 pontos.
+         * A função depende do WebGazer atualizar seu modelo de regressão internamente.
          */
         async function startGazeCalibration() {
             if (!window.webgazer) return;
@@ -375,18 +381,14 @@
             calibrateBtn.disabled = true;
             calibrateBtn.textContent = 'Calibrando... Olhe para os pontos!';
             
-            // Requerimentos: Calibração de 9 pontos (melhor precisão)
-            const calibPoints = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-            let currentPointIndex = 0;
-
             const overlay = createCalibrationOverlay();
             document.body.appendChild(overlay);
             const dot = document.getElementById('calibration-dot');
             const instruction = document.getElementById('calib-instruction');
 
             webgazer.clearData();
-            webgazer.showVideo(false);
-            webgazer.showPredictionPoints(true); // Exibir pontos para feedback
+            webgazer.showPredictionPoints(true); // Exibir pontos para feedback durante a calibração
+            webgazer.setGazeListener(null); // Pausa o listener principal
             
             const points = [
                 { x: 0.1, y: 0.1 }, { x: 0.5, y: 0.1 }, { x: 0.9, y: 0.1 },
@@ -394,7 +396,8 @@
                 { x: 0.1, y: 0.9 }, { x: 0.5, y: 0.9 }, { x: 0.9, y: 0.9 }
             ];
             
-            const CALIB_DWELL_MS = 1500; // Tempo de permanência em cada ponto
+            const SAMPLES_PER_POINT = 30; // Número de amostras por ponto
+            const SAMPLE_INTERVAL_MS = 50; // Intervalo entre amostras
 
             for (let i = 0; i < points.length; i++) {
                 const p = points[i];
@@ -407,41 +410,38 @@
                 // Espera um momento para o usuário fixar o olhar
                 await new Promise(r => setTimeout(r, 500)); 
 
-                // Simula o clique e coleta de dados para calibração
-                for (let j = 0; j < 30; j++) { // 30 amostras em 1.5s
+                // Coleta de dados para calibração
+                for (let j = 0; j < SAMPLES_PER_POINT; j++) {
+                    // Usamos 'click' como o tipo de evento. O WebGazer registra o ponto do olhar atual
+                    // e a coordenada de tela (screenX, screenY) fornecida, associando os dois para o modelo.
                     webgazer.recordScreenPosition(screenX, screenY, 'click');
-                    await new Promise(r => setTimeout(r, 50));
+                    await new Promise(r => setTimeout(r, SAMPLE_INTERVAL_MS));
                 }
             }
 
-            webgazer.setGazeListener(null); // Pausa o listener
-            webgazer.util.getPolynomialTransform(2).then(transform => {
-                webgazer.screenCalibration = transform; // Armazena a transformação
-                webgazer.setGazeListener(function(data) {
-                    if (data) processGazePoint(data.x, data.y);
-                });
+            // Fim da Calibração: O WebGazer atualizou seu modelo de regressão internamente.
 
-                document.body.removeChild(overlay);
-                window.calibrating = false;
-                calibrateBtn.textContent = 'Recalibrar Olhar';
-                calibrateBtn.disabled = false;
-                statusMessage.textContent = 'Calibração concluída! Digite com o olhar.';
-                statusMessage.classList.remove('text-yellow-400', 'text-red-500');
-                statusMessage.classList.add('text-green-500');
+            webgazer.showPredictionPoints(false); // Esconde pontos após calibração
+            document.body.removeChild(overlay);
+            window.calibrating = false;
 
-                // Habilita as funções de texto
-                textOutput.disabled = false;
-                deleteBtn.disabled = false;
-                clearBtn.disabled = false;
-            }).catch(e => {
-                console.error("Erro na Calibração:", e);
-                document.body.removeChild(overlay);
-                window.calibrating = false;
-                calibrateBtn.textContent = 'Falha na Calibração! Tentar Novamente.';
-                calibrateBtn.disabled = false;
-                statusMessage.textContent = 'ERRO: Falha ao gerar transformação de olhar. Tente novamente.';
-                statusMessage.classList.add('text-red-500');
+            // Reativa o listener principal (que usa o novo modelo de regressão)
+            webgazer.setGazeListener(function(data, elapsedTime) {
+                if (data && typeof data.x === 'number' && typeof data.y === 'number' && !window.calibrating) {
+                    processGazePoint(data.x, data.y);
+                }
             });
+
+            calibrateBtn.textContent = 'Recalibrar Olhar';
+            calibrateBtn.disabled = false;
+            statusMessage.textContent = 'Calibração concluída! Digite com o olhar.';
+            statusMessage.classList.remove('text-yellow-400', 'text-red-500');
+            statusMessage.classList.add('text-green-500');
+
+            // Habilita as funções de texto
+            textOutput.disabled = false;
+            deleteBtn.disabled = false;
+            clearBtn.disabled = false;
         }
         
         function createCalibrationOverlay() {
@@ -483,15 +483,16 @@
             dwellSlider.addEventListener('input', () => {
                 DWELL_TIME_SECONDS = parseFloat(dwellSlider.value);
                 dwellValue.textContent = DWELL_TIME_SECONDS.toFixed(1);
+                // Atualiza o progresso máximo para o novo tempo
                 MAX_PROGRESS = DWELL_TIME_SECONDS * (1000 / SELECTION_INTERVAL_MS);
-                selectionProgress = 0; // Resetar para aplicar o novo tempo
+                resetSelection(); // Resetar para aplicar o novo tempo
             });
 
             // Configura o WebGazer
-            webgazer.applyKalmanFilter(true); // Uso do filtro Kalman do WebGazer
-            webgazer.setRegression('ridge');
-            webgazer.setTracker('TFFacemesh');
-            webgazer.showVideo(true); // Exibir o vídeo no container fixo
+            webgazer.applyKalmanFilter(true); // Uso do filtro Kalman para suavização
+            webgazer.setRegression('ridge'); // Um bom tipo de regressão para rastreamento
+            webgazer.setTracker('TFFacemesh'); // Rastreador moderno baseado em TensorFlow
+            webgazer.showVideo(true); 
             webgazer.showFaceOverlay(false);
             webgazer.showFaceFeedbackBox(false);
             webgazer.showPredictionPoints(false);
@@ -501,9 +502,11 @@
                 statusMessage.textContent = 'Rastreamento ocular pronto. Calibre o olhar para começar.';
                 calibrateBtn.disabled = false;
 
-                // Configura o listener principal
+                // Configura o listener principal (inicialmente vazio, só será ativado após calibração)
                 webgazer.setGazeListener(function(data, elapsedTime) {
+                    // Este listener será substituído ou chamado por 'startGazeCalibration'
                     if (data && typeof data.x === 'number' && typeof data.y === 'number' && !window.calibrating) {
+                        // É importante que o processGazePoint seja chamado APENAS se não estiver calibrando
                         processGazePoint(data.x, data.y);
                     }
                 });
@@ -527,6 +530,7 @@
                 }
 
             }).catch(e => {
+                console.error("Erro ao iniciar WebGazer:", e);
                 statusMessage.textContent = 'ERRO: Não foi possível iniciar o rastreamento ocular. Verifique as permissões da câmera.';
                 statusMessage.classList.remove('text-yellow-400');
                 statusMessage.classList.add('text-red-500');
