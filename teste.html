@@ -7,28 +7,30 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        /* --- ESTILOS GERAIS E DE ACESSIBILIDADE --- */
         body {
             font-family: 'Roboto', sans-serif;
             min-height: 100vh;
-            background-color: #1f2937; /* Fundo Escuro para Reduzir Fadiga Ocular */
+            background-color: #1f2937; /* Fundo Escuro: Reduz Fadiga Ocular */
             color: #f3f4f6;
         }
         main {
             display: flex;
             gap: 24px;
         }
-        /* Estilos do Teclado Principal */
+        
+        /* --- ESTILOS DO TECLADO --- */
         #keyboard-grid {
             display: grid;
             grid-template-columns: repeat(10, 1fr);
-            gap: 6px; /* Aumentar o espaçamento */
+            gap: 6px;
         }
         .key-button {
-            padding: 1.25rem 0.5rem; /* Aumentar o tamanho para facilitar o olhar */
+            padding: 1.25rem 0.5rem; 
             text-align: center;
-            font-size: 1.5rem; /* Fonte maior */
+            font-size: 1.5rem; 
             font-weight: 500;
-            background-color: #374151; /* Cor de fundo da tecla */
+            background-color: #374151; 
             color: #f3f4f6;
             border: 2px solid #4b5563;
             transition: all 0.1s;
@@ -36,24 +38,24 @@
             user-select: none;
             border-radius: 0.75rem;
         }
-        /* Destaque para Seleção */
+        
+        /* --- FEEDBACK VISUAL DE SELEÇÃO (DWELL) --- */
         .highlighted {
-            background-color: #3b82f6; /* Azul Primário */
+            background-color: #3b82f6; /* Azul Primário: Destaca a tecla sendo olhada */
             color: white;
             border-color: #2563eb;
             box-shadow: 0 0 15px rgba(59, 130, 246, 0.7);
             transform: scale(1.03);
         }
-        /* Destaque para Confirmação */
         .selected {
-            background-color: #10b981 !important; /* Verde de Sucesso */
+            background-color: #10b981 !important; /* Verde: Confirma a seleção */
             border-color: #059669 !important;
         }
         .progress-bar {
-            height: 10px; /* Mais visível */
-            background-color: #f59e0b; /* Amarelo de Progresso */
+            height: 10px; 
+            background-color: #f59e0b; /* Amarelo: Progresso */
             width: 0%;
-            transition: width 0.05s linear;
+            transition: width 0.05s linear; /* Transição suave para o progresso */
             position: absolute;
             bottom: 0;
             left: 0;
@@ -63,19 +65,21 @@
             position: relative;
             overflow: hidden;
         }
-        /* Cursor de Olhar (Gaze Dot) */
+        
+        /* --- CURSOR DE OLHAR (GAZE DOT) --- */
         #gaze-dot {
             position: absolute;
             width: 15px;
             height: 15px;
             border-radius: 50%;
-            background: #f59e0b; /* Laranja/Amarelo */
+            background: #f59e0b; 
             box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.4);
             transform: translate(-100px,-100px);
-            transition: none; /* Sem transição para rastreamento suave */
-            pointer-events: none; /* Garante que o ponto não atrapalhe o elementFromPoint */
+            transition: none; /* ESSENCIAL: Sem transição para rastreamento suave e rápido */
+            pointer-events: none; 
         }
-        /* Webcam Feed Pequena e no Canto */
+        
+        /* --- WEBCAM FEED --- */
         #video-container {
             position: fixed;
             top: 24px;
@@ -94,7 +98,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            transform: scaleX(-1); /* Espelha o vídeo para visualização natural */
+            transform: scaleX(-1); /* Espelha o vídeo */
         }
     </style>
 </head>
@@ -157,7 +161,6 @@
 
     <script>
         // --- VARIÁVEIS GLOBAIS ---
-        const video = document.getElementById('webcam-video');
         const statusMessage = document.getElementById('status-message');
         const textOutput = document.getElementById('text-output');
         const keyboardGrid = document.getElementById('keyboard-grid');
@@ -166,14 +169,14 @@
         const clearBtn = document.getElementById('clear-btn');
         
         let DWELL_TIME_SECONDS = 1.5;
-        const SELECTION_INTERVAL_MS = 50; // Intervalo mais rápido para melhor feedback
+        const SELECTION_INTERVAL_MS = 50; 
         let currentSelectionKey = null;
         let selectionProgress = 0;
         let MAX_PROGRESS = DWELL_TIME_SECONDS * (1000 / SELECTION_INTERVAL_MS);
-        const HYSTERESIS_MS = 150; // Tempo mínimo para mudar de tecla (reduz jitter)
+        const HYSTERESIS_MS = 150; // Histérese para evitar seleção tremida (jitter)
         let pendingKey = null;
         let pendingSince = 0;
-        const SMOOTH_ALPHA = 0.2; // Fator de Suavização (menor = mais suave)
+        const SMOOTH_ALPHA = 0.2; // Fator de Suavização (0.1 a 0.5 é bom)
         let lastSmoothedGaze = null;
         
         const keys = [
@@ -186,17 +189,14 @@
 
         // --- FUNÇÕES DE SETUP ---
 
-        /**
-         * Cria e insere os botões do teclado no DOM.
-         */
         function createKeyboard() {
-            keyboardGrid.innerHTML = ''; // Limpar antes de criar
+            keyboardGrid.innerHTML = '';
             keys.forEach(key => {
                 const container = document.createElement('div');
                 container.className = 'key-container';
                 container.setAttribute('data-key', key);
                 
-                // Ajustes de span/tamanho para chaves especiais
+                // Ajustes de span/tamanho
                 if (key === 'SPACE') container.style.gridColumn = 'span 4';
                 if (key === 'SHIFT') container.style.gridColumn = 'span 2';
                 if (key === 'BACK' || key === 'ENTER' || key === 'CLEAR') container.style.gridColumn = 'span 2';
@@ -226,15 +226,11 @@
         
         // --- FUNÇÕES DE RASTREAMENTO E SELEÇÃO ---
 
-        /**
-         * Processa o ponto de olhar na tela (x, y) e tenta destacar uma chave.
-         */
         function processGazePoint(x, y) {
-            // 1. Suavização (Smoothing)
+            // 1. Suavização (Exponential Moving Average)
             if (!lastSmoothedGaze) {
                 lastSmoothedGaze = { x: x, y: y };
             } else {
-                // Média móvel exponencial simples
                 x = SMOOTH_ALPHA * x + (1 - SMOOTH_ALPHA) * lastSmoothedGaze.x;
                 y = SMOOTH_ALPHA * y + (1 - SMOOTH_ALPHA) * lastSmoothedGaze.y;
                 lastSmoothedGaze = { x: x, y: y };
@@ -249,19 +245,17 @@
             const targetKeyContainer = targetElement && targetElement.closest('.key-container');
 
             if (targetKeyContainer) {
-                // A) Lógica de Histérese (Key Switching)
+                // Lógica de Histérese (evita mudança rápida de tecla)
                 if (currentSelectionKey !== targetKeyContainer) {
                     if (pendingKey !== targetKeyContainer) {
-                        // Novo candidato, reinicia contagem de pending
                         pendingKey = targetKeyContainer;
                         pendingSince = Date.now();
-                        resetSelection(); // Resetar visualmente
+                        resetSelection();
                     } else if (Date.now() - pendingSince >= HYSTERESIS_MS) {
-                        // Candidato está estável o suficiente, destacar e iniciar dwell
+                        // Tecla está estável, inicia o dwell
                         currentSelectionKey = targetKeyContainer;
                         selectionProgress = 0;
                         pendingKey = null;
-                        pendingSince = 0;
                     }
                 }
                 
@@ -270,42 +264,29 @@
                 }
 
             } else {
-                // Não está olhando para nenhuma chave válida
                 resetSelection();
             }
         }
         
-        /**
-         * Destaca uma chave visualmente.
-         */
         function highlightKey(keyContainer) {
             const button = keyContainer.querySelector('.key-button');
             if (!button.classList.contains('highlighted')) {
-                // Remove destaque de todas as outras chaves
                 document.querySelectorAll('.key-button').forEach(btn => btn.classList.remove('highlighted', 'selected'));
-                // Aplica destaque na atual
                 button.classList.add('highlighted');
             }
         }
 
-        /**
-         * Reseta o estado de seleção.
-         */
         function resetSelection() {
             if (currentSelectionKey) {
-                // Remove destaque e zera a barra de progresso da chave anterior
                 currentSelectionKey.querySelector('.key-button').classList.remove('highlighted', 'selected');
                 currentSelectionKey.querySelector('.progress-bar').style.width = '0%';
             }
             currentSelectionKey = null;
             selectionProgress = 0;
-            pendingKey = null; // Zera também o pending
+            pendingKey = null;
             pendingSince = 0;
         }
 
-        /**
-         * Loop principal do Dwell Time.
-         */
         function selectionLoop() {
             if (currentSelectionKey && !window.calibrating) {
                 selectionProgress++;
@@ -315,15 +296,13 @@
                 const button = keyContainer.querySelector('.key-button');
                 const progressBar = keyContainer.querySelector('.progress-bar');
 
-                // Atualiza o progresso visual
                 const percentage = (selectionProgress / MAX_PROGRESS) * 100;
                 progressBar.style.width = `${percentage}%`;
 
                 if (selectionProgress >= MAX_PROGRESS) {
-                    // SELEÇÃO CONCLUÍDA!
+                    // SELEÇÃO CONCLUÍDA
                     processSelection(keyChar);
 
-                    // Efeito visual de seleção
                     button.classList.add('selected');
                     setTimeout(() => {
                         button.classList.remove('selected');
@@ -331,15 +310,12 @@
 
                     if (window.selectionBeep) window.selectionBeep();
 
-                    // Reinicia o dwell para a chave atual (permite seleção contínua)
+                    // Reinicia o dwell (permite seleção contínua na mesma tecla)
                     selectionProgress = 0;
                 }
             }
         }
         
-        /**
-         * Executa a ação da chave selecionada.
-         */
         function processSelection(keyChar) {
             let currentText = textOutput.value;
             switch(keyChar) {
@@ -353,14 +329,12 @@
                     textOutput.value = '';
                     break;
                 case 'ENTER':
-                    // Ação de envio/nova linha (pode ser ajustada)
                     textOutput.value = currentText + '\n';
                     break;
                 case 'SHIFT':
-                    // Por simplicidade, o SHIFT não alterna o layout do teclado
+                    // Funcionalidade de SHIFT (alternar teclado) pode ser adicionada aqui.
                     break;
                 default:
-                    // Caracter normal
                     textOutput.value = currentText + keyChar;
                     break;
             }
@@ -370,80 +344,6 @@
         
         // --- CALIBRAÇÃO 9 PONTOS (CORRIGIDA) ---
 
-        /**
-         * Inicia o processo de calibração de 9 pontos.
-         * A função depende do WebGazer atualizar seu modelo de regressão internamente.
-         */
-        async function startGazeCalibration() {
-            if (!window.webgazer) return;
-            window.calibrating = true;
-            resetSelection();
-            calibrateBtn.disabled = true;
-            calibrateBtn.textContent = 'Calibrando... Olhe para os pontos!';
-            
-            const overlay = createCalibrationOverlay();
-            document.body.appendChild(overlay);
-            const dot = document.getElementById('calibration-dot');
-            const instruction = document.getElementById('calib-instruction');
-
-            webgazer.clearData();
-            webgazer.showPredictionPoints(true); // Exibir pontos para feedback durante a calibração
-            webgazer.setGazeListener(null); // Pausa o listener principal
-            
-            const points = [
-                { x: 0.1, y: 0.1 }, { x: 0.5, y: 0.1 }, { x: 0.9, y: 0.1 },
-                { x: 0.1, y: 0.5 }, { x: 0.5, y: 0.5 }, { x: 0.9, y: 0.5 },
-                { x: 0.1, y: 0.9 }, { x: 0.5, y: 0.9 }, { x: 0.9, y: 0.9 }
-            ];
-            
-            const SAMPLES_PER_POINT = 30; // Número de amostras por ponto
-            const SAMPLE_INTERVAL_MS = 50; // Intervalo entre amostras
-
-            for (let i = 0; i < points.length; i++) {
-                const p = points[i];
-                const screenX = window.innerWidth * p.x;
-                const screenY = window.innerHeight * p.y;
-                
-                instruction.textContent = `Ponto ${i + 1} de ${points.length}. Mantenha o olhar fixo.`;
-                dot.style.transform = `translate(${screenX - 14}px, ${screenY - 14}px)`;
-                
-                // Espera um momento para o usuário fixar o olhar
-                await new Promise(r => setTimeout(r, 500)); 
-
-                // Coleta de dados para calibração
-                for (let j = 0; j < SAMPLES_PER_POINT; j++) {
-                    // Usamos 'click' como o tipo de evento. O WebGazer registra o ponto do olhar atual
-                    // e a coordenada de tela (screenX, screenY) fornecida, associando os dois para o modelo.
-                    webgazer.recordScreenPosition(screenX, screenY, 'click');
-                    await new Promise(r => setTimeout(r, SAMPLE_INTERVAL_MS));
-                }
-            }
-
-            // Fim da Calibração: O WebGazer atualizou seu modelo de regressão internamente.
-
-            webgazer.showPredictionPoints(false); // Esconde pontos após calibração
-            document.body.removeChild(overlay);
-            window.calibrating = false;
-
-            // Reativa o listener principal (que usa o novo modelo de regressão)
-            webgazer.setGazeListener(function(data, elapsedTime) {
-                if (data && typeof data.x === 'number' && typeof data.y === 'number' && !window.calibrating) {
-                    processGazePoint(data.x, data.y);
-                }
-            });
-
-            calibrateBtn.textContent = 'Recalibrar Olhar';
-            calibrateBtn.disabled = false;
-            statusMessage.textContent = 'Calibração concluída! Digite com o olhar.';
-            statusMessage.classList.remove('text-yellow-400', 'text-red-500');
-            statusMessage.classList.add('text-green-500');
-
-            // Habilita as funções de texto
-            textOutput.disabled = false;
-            deleteBtn.disabled = false;
-            clearBtn.disabled = false;
-        }
-        
         function createCalibrationOverlay() {
             const overlay = document.createElement('div');
             overlay.id = 'calibration-overlay';
@@ -462,13 +362,83 @@
             dot.id = 'calibration-dot';
             dot.style.cssText = `
                 position: absolute; width: 28px; height: 28px; border-radius: 50%; background: #10b981; 
-                box-shadow: 0 0 0 10px rgba(16,185,129,0.25); border: 4px solid #ffffff; transition: transform 300ms ease;
+                box-shadow: 0 0 0 10px rgba(16,185,129,0.25); border: 4px solid #ffffff;
             `;
             overlay.appendChild(instruction);
             overlay.appendChild(dot);
             return overlay;
         }
 
+        async function startGazeCalibration() {
+            if (!window.webgazer) return;
+            window.calibrating = true;
+            resetSelection();
+            calibrateBtn.disabled = true;
+            calibrateBtn.textContent = 'Calibrando... Olhe para os pontos!';
+            
+            const overlay = createCalibrationOverlay();
+            document.body.appendChild(overlay);
+            const dot = document.getElementById('calibration-dot');
+            const instruction = document.getElementById('calib-instruction');
+
+            webgazer.clearData();
+            webgazer.showPredictionPoints(true); 
+            webgazer.setGazeListener(null); 
+            
+            const points = [
+                { x: 0.1, y: 0.1 }, { x: 0.5, y: 0.1 }, { x: 0.9, y: 0.1 },
+                { x: 0.1, y: 0.5 }, { x: 0.5, y: 0.5 }, { x: 0.9, y: 0.5 },
+                { x: 0.1, y: 0.9 }, { x: 0.5, y: 0.9 }, { x: 0.9, y: 0.9 }
+            ];
+            
+            const SAMPLES_PER_POINT = 30;
+            const SAMPLE_INTERVAL_MS = 50; 
+
+            for (let i = 0; i < points.length; i++) {
+                const p = points[i];
+                // Calcula as coordenadas de tela
+                const screenX = window.innerWidth * p.x;
+                const screenY = window.innerHeight * p.y;
+                
+                instruction.textContent = `Ponto ${i + 1} de ${points.length}. Mantenha o olhar fixo.`;
+                
+                // --- CORREÇÃO DE POSICIONAMENTO AQUI ---
+                // Usa top/left para posicionamento absoluto, garantindo que o ponto não saia da tela
+                dot.style.left = `${screenX - 14}px`; // 14 = metade do tamanho do ponto (28px)
+                dot.style.top = `${screenY - 14}px`; 
+                
+                await new Promise(r => setTimeout(r, 500)); // Pequena pausa para o usuário focar
+
+                // Coleta de dados
+                for (let j = 0; j < SAMPLES_PER_POINT; j++) {
+                    webgazer.recordScreenPosition(screenX, screenY, 'click');
+                    await new Promise(r => setTimeout(r, SAMPLE_INTERVAL_MS));
+                }
+            }
+
+            // Fim da Calibração
+            webgazer.showPredictionPoints(false); 
+            document.body.removeChild(overlay);
+            window.calibrating = false;
+
+            // Reativa o listener principal
+            webgazer.setGazeListener(function(data, elapsedTime) {
+                if (data && typeof data.x === 'number' && typeof data.y === 'number' && !window.calibrating) {
+                    processGazePoint(data.x, data.y);
+                }
+            });
+
+            calibrateBtn.textContent = 'Recalibrar Olhar';
+            calibrateBtn.disabled = false;
+            statusMessage.textContent = 'Calibração concluída! Digite com o olhar.';
+            statusMessage.classList.remove('text-yellow-400', 'text-red-500');
+            statusMessage.classList.add('text-green-500');
+
+            textOutput.disabled = false;
+            deleteBtn.disabled = false;
+            clearBtn.disabled = false;
+        }
+        
         // --- INICIALIZAÇÃO E EVENT LISTENERS ---
 
         window.onload = function() {
@@ -483,15 +453,14 @@
             dwellSlider.addEventListener('input', () => {
                 DWELL_TIME_SECONDS = parseFloat(dwellSlider.value);
                 dwellValue.textContent = DWELL_TIME_SECONDS.toFixed(1);
-                // Atualiza o progresso máximo para o novo tempo
                 MAX_PROGRESS = DWELL_TIME_SECONDS * (1000 / SELECTION_INTERVAL_MS);
-                resetSelection(); // Resetar para aplicar o novo tempo
+                resetSelection(); 
             });
 
-            // Configura o WebGazer
-            webgazer.applyKalmanFilter(true); // Uso do filtro Kalman para suavização
-            webgazer.setRegression('ridge'); // Um bom tipo de regressão para rastreamento
-            webgazer.setTracker('TFFacemesh'); // Rastreador moderno baseado em TensorFlow
+            // Configuração do WebGazer
+            webgazer.applyKalmanFilter(true); // Filtro interno de suavização
+            webgazer.setRegression('ridge'); 
+            webgazer.setTracker('TFFacemesh'); // Usa o rastreador mais moderno e preciso
             webgazer.showVideo(true); 
             webgazer.showFaceOverlay(false);
             webgazer.showFaceFeedbackBox(false);
@@ -502,11 +471,9 @@
                 statusMessage.textContent = 'Rastreamento ocular pronto. Calibre o olhar para começar.';
                 calibrateBtn.disabled = false;
 
-                // Configura o listener principal (inicialmente vazio, só será ativado após calibração)
+                // Inicializa o listener
                 webgazer.setGazeListener(function(data, elapsedTime) {
-                    // Este listener será substituído ou chamado por 'startGazeCalibration'
                     if (data && typeof data.x === 'number' && typeof data.y === 'number' && !window.calibrating) {
-                        // É importante que o processGazePoint seja chamado APENAS se não estiver calibrando
                         processGazePoint(data.x, data.y);
                     }
                 });
@@ -519,7 +486,7 @@
                         const osc = ctx.createOscillator();
                         const gain = ctx.createGain();
                         osc.type = 'sine';
-                        osc.frequency.value = 660; // Frequência um pouco mais baixa
+                        osc.frequency.value = 660; 
                         osc.connect(gain);
                         gain.connect(ctx.destination);
                         gain.gain.setValueAtTime(0.001, ctx.currentTime);
@@ -531,7 +498,7 @@
 
             }).catch(e => {
                 console.error("Erro ao iniciar WebGazer:", e);
-                statusMessage.textContent = 'ERRO: Não foi possível iniciar o rastreamento ocular. Verifique as permissões da câmera.';
+                statusMessage.textContent = 'ERRO: Verifique a permissão da câmera e se seu navegador suporta.';
                 statusMessage.classList.remove('text-yellow-400');
                 statusMessage.classList.add('text-red-500');
             });
